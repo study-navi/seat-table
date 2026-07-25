@@ -143,17 +143,24 @@ padding:3px 10px; border-radius:20px; flex-shrink:0;
 .block-actions{ display:flex; gap:6px; flex-wrap:wrap; }
 
 .sheet-wrap{ overflow-x:auto; }
-.sheet{
+.sheet{ min-width: 960px; }
+
+/* Each row (header rows, seat rows, group rows) is its OWN independent grid using
+the same column template. This prevents CSS Grid auto-placement from ever bleeding
+a cell into the wrong row/column, which previously caused misaligned, cramped-looking
+columns (student names and buttons appearing squeezed into the wrong, narrower column). */
+.sheet-header, .seat-row-wrap, .group-row-wrap{
 display:grid;
 grid-template-columns: 48px 140px 96px 64px minmax(170px,1fr) 96px 64px minmax(170px,1fr);
-min-width: 960px;
 }
 .th{
 background:#eef1f7; border-bottom:2px solid var(--line); padding:8px 8px;
 font-size:0.8em; color: var(--ink); font-weight:600; display:flex; align-items:center; justify-content:center;
 text-align:center;
 }
-.th.sub-head{ background:#f6f8fc; font-weight:500; color: var(--ink-soft); border-top:1px solid var(--line-soft); }
+.sheet-header.sub .th{ border-top:1px solid var(--line-soft); }
+.th.sub-head{ background:#f6f8fc; font-weight:500; color: var(--ink-soft); }
+.th.blank2{ grid-column: span 2; background:#eef1f7; }
 .th.group-head{ background:#f3eefc; color:#5a3f9e; }
 .th.side-left{ grid-column: span 3; background:#dfe9fb; color:var(--blue-dark); font-weight:700; }
 .th.side-right{ grid-column: span 3; background:#dfe9fb; color:var(--blue-dark); font-weight:700; }
@@ -190,8 +197,11 @@ border:1px solid var(--line); background:#fff; border-radius:4px; font-size:0.7e
 .group-row{ background:#faf8ff; }
 .group-row .cell{ border-bottom:1px solid #e6def5; min-height:46px; }
 .group-name-cell input{ font-weight:600; }
-.group-students-cell{ grid-column: span 4; flex-wrap:wrap; }
-.chip-list{ display:flex; flex-wrap:wrap; gap:4px; flex:1; }
+.group-students-cell{ flex-wrap:wrap; align-items:flex-start; gap:6px; }
+.group-students-footer{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; width:100%; margin-top:4px; }
+.group-students-footer .add-student-chip{ flex:1; min-width:120px; }
+.group-students-footer .btn{ flex-shrink:0; }
+.chip-list{ display:flex; flex-wrap:wrap; gap:4px; flex:1; width:100%; }
 .chip{
 background:#efe8fb; color:#5a3f9e; border-radius:12px; padding:2px 8px 2px 10px; font-size:0.8em;
 display:flex; align-items:center; gap:4px;
@@ -302,7 +312,9 @@ main{ max-width:none; }
 .lesson-block{ border:1.1pt solid #55627a; border-radius:0; break-inside:avoid; }
 .block-head{ padding:1mm 3mm; background:#fff; border-bottom:1pt solid #55627a; }
 .block-head .time-input span, .block-head .time-input input{ font-size:9pt; border:none; }
-.sheet{ min-width:0; grid-template-columns: 8mm 24mm 10mm minmax(0,1fr) 10mm minmax(0,1fr); }
+.sheet-header, .seat-row-wrap, .group-row-wrap{ min-width:0; grid-template-columns: 8mm 20mm 12mm 8mm minmax(0,1fr) 12mm 8mm minmax(0,1fr); }
+.th.side-left, .th.side-right{ grid-column: span 3; }
+.th.blank2{ grid-column: span 2; }
 .th{ font-size:6.5pt; padding:1mm; }
 .cell{ min-height:9mm; padding:0.8mm 1mm; border-color:#9aa5b5; }
 .cell select, .cell input{ border:none; background:transparent; font-size:8pt; padding:0; color:#000; }

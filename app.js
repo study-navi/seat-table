@@ -411,19 +411,25 @@ ${COMMON_TIME_PRESETS.map(t=>`<option value="${t}" ${t===block.time?"selected":"
 </div>
 <div class="sheet-wrap">
 <div class="sheet">
+<div class="sheet-header">
 <div class="th">席</div>
 <div class="th">担当講師</div>
 <div class="th side-left">左側</div>
 <div class="th side-right">右側</div>
-<div class="th sub-head"></div>
+</div>
+<div class="sheet-header sub">
+<div class="th sub-head blank2"></div>
 <div class="th sub-head">科目</div>
 <div class="th sub-head">学年</div>
 <div class="th sub-head">生徒名</div>
 <div class="th sub-head">科目</div>
 <div class="th sub-head">学年</div>
 <div class="th sub-head">生徒名</div>
+</div>
+<div class="sheet-body">
 ${seatRows}
 ${groupRows}
+</div>
 </div>
 </div>
 </div>`;
@@ -450,7 +456,7 @@ const sideHtml = (side, key)=>`
 </div>`;
 
 return `
-<div class="seat-row-wrap ${si%2===1?'alt-row':''}" data-seat-index="${si}" style="display:contents">
+<div class="seat-row-wrap ${si%2===1?'alt-row':''}" data-seat-index="${si}">
 <div class="cell seat-num-cell">
 <input type="text" class="js-seat-num" value="${escapeHtml(seat.seatNumber)}" aria-label="${si+1}行目の席番号">
 <div class="seat-move">
@@ -472,7 +478,7 @@ const teacherOptions = `<option value="">—</option>` + state.teachers.map(t=>`
 const remainingStudents = state.students.filter(s=> !g.students.includes(s.name));
 const chips = g.students.map(name=>`<span class="chip">${escapeHtml(name)}<button type="button" class="js-remove-gstudent" data-name="${escapeHtml(name)}">×</button></span>`).join("");
 return `
-<div class="group-row-wrap" data-group-index="${gi}" style="display:contents">
+<div class="group-row-wrap" data-group-index="${gi}">
 <div class="cell seat-num-cell group-row">
 <input type="text" class="js-g-seat-num" value="${escapeHtml(g.seatNumber)}" placeholder="使用席">
 </div>
@@ -487,13 +493,13 @@ return `
 </div>
 <div class="cell group-row group-students-cell" style="grid-column: span 3;">
 <div class="chip-list">${chips}</div>
+<div class="group-students-footer">
 <select class="js-g-add-student add-student-chip">
 <option value="">＋ 生徒を追加</option>
 ${remainingStudents.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join("")}
 </select>
-</div>
-<div class="cell group-row" style="justify-content:flex-end;">
 <button type="button" class="btn danger js-del-group">削除</button>
+</div>
 </div>
 </div>
 `;
