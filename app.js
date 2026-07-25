@@ -806,19 +806,20 @@ const key = it.teacher_name || "";
 byTeacher[key] = byTeacher[key] || [];
 byTeacher[key].push(it);
 });
-Object.keys(byTeacher).forEach(teacherName=>{
-const list = byTeacher[teacherName].slice().sort((a,b)=> (a.pos||0)-(b.pos||0));
+Object.keys(byTeacher).forEach(teacherNameRaw=>{
+const teacherName = normalizeName(teacherNameRaw);
+const list = byTeacher[teacherNameRaw].slice().sort((a,b)=> (a.pos||0)-(b.pos||0));
 const seat = emptySeat(block.seats.length+1);
 seat.teacher = teacherName;
-if(list[0]) seat.left = {student:list[0].student_name||"", subject:list[0].subject||"", grade:list[0].grade||"", status:"normal"};
-if(list[1]) seat.right = {student:list[1].student_name||"", subject:list[1].subject||"", grade:list[1].grade||"", status:"normal"};
+if(list[0]) seat.left = {student:normalizeName(list[0].student_name||""), subject:list[0].subject||"", grade:list[0].grade||"", status:"normal"};
+if(list[1]) seat.right = {student:normalizeName(list[1].student_name||""), subject:list[1].subject||"", grade:list[1].grade||"", status:"normal"};
 block.seats.push(seat);
 // 3人以上が同じ講師・同じコマの場合は、3人目以降を集団行として追加
 if(list.length>2){
 block.groupRows.push({
 id: uid(), seatNumber: "", name: "", teacher: teacherName,
 subject: list[2].subject || "",
-students: list.slice(2).map(x=>x.student_name).filter(Boolean)
+students: list.slice(2).map(x=>normalizeName(x.student_name)).filter(Boolean)
 });
 }
 });
@@ -826,8 +827,8 @@ students: list.slice(2).map(x=>x.student_name).filter(Boolean)
 (groupsByKoma[komaId]||[]).forEach(g=>{
 block.groupRows.push({
 id: uid(), seatNumber: "", name: g.name || "",
-teacher: g.teacher_name || "", subject: "",
-students: (g.students||[]).filter(Boolean)
+teacher: normalizeName(g.teacher_name || ""), subject: "",
+students: (g.students||[]).map(n=>normalizeName(n)).filter(Boolean)
 });
 });
 
