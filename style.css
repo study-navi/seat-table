@@ -352,50 +352,40 @@ grid-template-columns: 32px 90px 84px 40px minmax(0,1fr) 84px 40px minmax(0,1fr)
 /* ---------- Print ---------- */
 @media print{
 @page{ size: A3 landscape; margin: 8mm; }
-html,body{ background:#fff; height:100%; }
+html,body{ background:#fff; }
 body, main{ margin:0; padding:0; background:#fff; }
 .topbar, .tabs, .preset-panel, .legend, .seat-toolbar, .btn, .toast, .status-buttons, .remove-student, .seat-move, .row-order{
 display:none !important;
 }
 .block-actions{ display:none !important; }
-main{ max-width:none; height:100%; display:flex; flex-direction:column; }
-.view{ height:100%; display:flex; flex-direction:column; }
+main{ max-width:none; }
 .panel{ border:none; padding:0; }
-.page-head{ margin-bottom:4mm; flex:0 0 auto; }
+.page-head{ margin-bottom:4mm; }
 .page-head .eyebrow{ display:none; }
 .page-head h2{ font-size:16pt; margin:0; }
-/* Stretch the whole grid of blocks (and every row inside each block) to fill
-the full printable page height, instead of leaving large blank space below. */
-.blocks{ display:grid; grid-template-columns: repeat(2, 1fr); grid-auto-rows: 1fr; gap:5mm; flex:1 1 auto; min-height:0; }
-.lesson-block{ border:1.1pt solid #55627a; border-radius:0; break-inside:avoid; display:flex; flex-direction:column; min-height:0; }
-.block-head{ padding:1.5mm 3mm; background:#fff; border-bottom:1pt solid #55627a; flex:0 0 auto; }
-.block-head .time-input span, .block-head .time-input input{ font-size:10pt; border:none; }
-.sheet-wrap{ flex:1; min-height:0; }
-.sheet{ height:100%; display:flex; flex-direction:column; }
-.sheet-header{ flex:0 0 auto; }
-.sheet-body{ flex:1; display:flex; flex-direction:column; min-height:0; }
-.seat-row-wrap, .group-row-wrap{ flex:1 1 0; min-height:0; }
-.sheet-header, .seat-row-wrap, .group-row-wrap{ min-width:0; grid-template-columns: 8mm 22mm 14mm 9mm minmax(0,1fr) 14mm 9mm minmax(0,1fr); }
+.blocks{ display:grid; grid-template-columns: repeat(2, 1fr); gap:4.5mm; }
+.lesson-block{ border:1.1pt solid #55627a; border-radius:0; break-inside:avoid; }
+.block-head{ padding:1.2mm 3mm; background:#fff; border-bottom:1pt solid #55627a; }
+.block-head .time-input span, .block-head .time-input input{ font-size:9pt; border:none; }
+.sheet-header, .seat-row-wrap, .group-row-wrap{ min-width:0; grid-template-columns: 8mm 21mm 13mm 8.5mm minmax(0,1fr) 13mm 8.5mm minmax(0,1fr); }
 .th.side-left, .th.side-right{ grid-column: span 3; }
 .th.blank2{ grid-column: span 2; }
-.th{ font-size:7.5pt; padding:1.2mm; }
-.cell{ min-height:0; padding:1mm 1.2mm; border-color:#9aa5b5; }
-.cell select, .cell input{ border:none; background:transparent; font-size:9pt; padding:0; color:#000; }
-.teacher-col select{ font-size:10pt; }
+.th{ font-size:7pt; padding:1mm; }
+.cell{ min-height:10mm; padding:0.9mm 1.1mm; border-color:#9aa5b5; }
+.cell select, .cell input{ border:none; background:transparent; font-size:8.5pt; padding:0; color:#000; }
+.teacher-col select{ font-size:9.5pt; }
 /* subject is the #1 print priority: largest, boldest */
 .subject-select{ font-size: var(--print-subject-size) !important; font-weight:900 !important; text-align:center; }
 .student-select{ font-size: var(--print-student-size); font-weight:700; }
 .grade-input{ font-size: var(--print-grade-size); text-align:center; }
-.seat-num-cell input{ font-size:9pt; border:none; text-align:center; }
+.seat-num-cell input{ font-size:8.5pt; border:none; text-align:center; }
 .student-cell.status-course{ background:#e4ecff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .student-cell.status-transfer{ background:#e3f6e8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; border-left:1.4pt solid #2e8b57; }
 .student-cell.status-absent{ background:#fbe6e3 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; border-left:1.4pt dashed #c0392b; }
 .group-row{ background:#f6f2fd !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-.chip{ font-size:9pt; padding:2px 6px; }
+.chip{ font-size:8.5pt; padding:1.5px 5.5px; }
 .chip button{ display:none; }
 .print-image{ display:block !important; position:fixed; z-index:2; }
 #view-print > .panel.page-head, #view-print > .print-settings-panel{ display:none !important; }
-#view-print .print-preview-wrap{ padding:0; margin:0; flex:1 1 auto; min-height:0; display:flex; }
-#view-print .print-preview-page{ width:100%; flex:1; display:flex; flex-direction:column; min-height:0; padding:0; border:none; box-shadow:none; }
-#view-print .print-preview-page > .page-head{ display:block !important; flex:0 0 auto; }
+#view-print .print-preview-wrap{ padding:0; margin:0; }
 }
