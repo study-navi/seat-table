@@ -441,7 +441,8 @@ padding:2mm 0;
 .group-row{ background:#f6f2fd !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .chip{ font-size:8pt; padding:1.5px 5.5px; }
 .chip button{ display:none; }
-.print-image{ display:block !important; position:fixed; z-index:2; }
+/* position:fixed だと紙面ではページ基準になり、プレビュー(absolute)と位置がずれる */
+.print-image{ display:block !important; position:absolute; z-index:2; }
 #view-print > .panel.page-head, #view-print > .print-settings-panel{ display:none !important; }
 #view-print .print-preview-wrap{ padding:0; margin:0; }
 /* 紙幅いっぱいに使う。全体の大きさはスライダー(--print-page-scale)で調整 */
