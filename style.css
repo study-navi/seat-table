@@ -325,6 +325,10 @@ border:1px solid var(--line); box-shadow:0 4px 20px rgba(20,26,38,0.08);
 .print-preview-page .lesson-block{ border:1.4px solid #55627a; border-radius:0; box-shadow:none; }
 .print-preview-page .block-head{ padding:4px 10px; background:#fff; border-bottom:1px solid #55627a; }
 .print-preview-page .block-actions{ display:none; }
+.print-preview-page .btn{ display:none !important; }
+.print-preview-page .time-choice{ display:none !important; }
+.print-preview-page .time-input input[type=time]{ border:none; background:transparent; padding:0; font-size:9pt; }
+.print-preview-page .time-input span{ font-size:9pt; }
 .print-preview-page .seat-move, .print-preview-page .row-order, .print-preview-page .status-buttons,
 .print-preview-page .js-remove-gstudent, .print-preview-page .add-student-chip{ display:none !important; }
 .print-preview-page .sheet-header, .print-preview-page .seat-row-wrap, .print-preview-page .group-row-wrap{
