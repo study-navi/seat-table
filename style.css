@@ -451,7 +451,9 @@ width: calc(100% / var(--print-page-scale, 1)) !important;
 padding:0 !important; border:none !important; box-shadow:none !important;
 }
 /* 印刷では画面用のフィット表示と縦横比指定を解除する */
-#view-print .print-preview-page{ aspect-ratio: auto !important; transform: none !important; }
+/* 縦横比は印刷でも維持する。解除するとページ枠が内容なりに縮み、
+   画像の % 位置の基準が変わってプレビューとずれる */
+#view-print .print-preview-page{ transform: none !important; }
 #view-print .print-preview-wrap{ height: auto !important; overflow: visible !important; }
 .seat-row-wrap, .group-row-wrap{ min-height: var(--print-row-h, 0px); }
 .group-time-auto{ font-size:7.5pt; color:#000; white-space:normal; line-height:1.15; }
