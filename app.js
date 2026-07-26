@@ -1856,3 +1856,55 @@ document.addEventListener("DOMContentLoaded", init);
   watch();
   setInterval(watch, 1200);
 })();
+
+/* ==========================================================
+   印刷プレビューを実際の印刷結果に合わせる
+   @media print のルールを読み取り、セレクタに .print-preview-page を
+   付けた複製を screen 用に注入する。印刷CSSを変えれば自動で追従する。
+   ========================================================== */
+(function(){
+  var ID = "preview-mirror-print";
+  var SKIP = /^(@|html\b|body\b|main\b|\.topbar|\.tabs\b|\.tab-btn|\.save-indicator|\.brand|#view-|\.print-preview)/;
+  function collect(rules, out){
+    for (var i = 0; i < rules.length; i++){
+      var r = rules[i];
+      if (!r || !r.selectorText || !r.style) continue;
+      var parts = r.selectorText.split(",");
+      var keep = [];
+      for (var j = 0; j < parts.length; j++){
+        var sel = parts[j].trim();
+        if (!sel || SKIP.test(sel)) continue;
+        keep.push(".print-preview-page " + sel);
+      }
+      if (!keep.length) continue;
+      out.push(keep.join(", ") + "{" + r.style.cssText + "}");
+    }
+  }
+  function build(){
+    var old = document.getElementById(ID);
+    var sheets = document.styleSheets, out = [], i, j;
+    for (i = 0; i < sheets.length; i++){
+      if (sheets[i].ownerNode && sheets[i].ownerNode.id === ID) continue;
+      var rules = null;
+      try { rules = sheets[i].cssRules; } catch(e){ continue; }
+      if (!rules) continue;
+      for (j = 0; j < rules.length; j++){
+        var r = rules[j];
+        if (!r || r.type !== 4) continue;
+        var cond = String(r.conditionText || (r.media && r.media.mediaText) || "");
+        if (cond.indexOf("print") < 0) continue;
+        if (r.cssRules) collect(r.cssRules, out);
+      }
+    }
+    if (!out.length) return;
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var st = document.createElement("style");
+    st.id = ID;
+    st.setAttribute("media", "screen");
+    st.textContent = out.join("\n");
+    document.head.appendChild(st);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
+  else build();
+  setTimeout(build, 1500);
+})();
