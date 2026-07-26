@@ -1582,3 +1582,122 @@ document.addEventListener("DOMContentLoaded", init);
   }
   setInterval(inject, 1500);
 })();
+
+/* ==========================================================
+   印刷: 行の高さ（縦の伸ばし）と、プレビューの画面フィット表示
+   ========================================================== */
+(function(){
+  var ROWKEY = "seat-table-print-row-h";
+  var FITKEY = "seat-table-preview-fit";
+  var MAXMM = 22;
+  function q(s){ return document.querySelector(s); }
+
+  function readRow(){
+    var v = parseFloat(localStorage.getItem(ROWKEY));
+    if (!isFinite(v) || v < 0 || v > MAXMM) return 0;
+    return v;
+  }
+  function applyRow(v){
+    document.documentElement.style.setProperty("--print-row-h", v > 0 ? (v + "mm") : "0px");
+  }
+  function rowText(v){ return v > 0 ? ("行の高さ " + v + "mm") : "行の高さ 自動"; }
+
+  function readFit(){ return localStorage.getItem(FITKEY) !== "0"; }
+  function applyFit(){
+    var wrap = q(".print-preview-wrap");
+    var page = q(".print-preview-page");
+    if (!wrap || !page) return;
+    page.style.transform = "none";
+    if (!readFit()){
+      page.style.transform = "";
+      page.style.transformOrigin = "";
+      wrap.style.height = "";
+      wrap.style.overflow = "";
+      return;
+    }
+    var r = page.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    var availW = wrap.clientWidth;
+    var availH = Math.max(300, window.innerHeight - wrap.getBoundingClientRect().top - 24);
+    var f = Math.min(availW / r.width, availH / r.height, 1);
+    if (!isFinite(f) || f <= 0) f = 1;
+    f = Math.max(0.2, f);
+    page.style.transformOrigin = "top center";
+    page.style.transform = "scale(" + f + ")";
+    wrap.style.height = Math.ceil(r.height * f) + "px";
+    wrap.style.overflow = "hidden";
+  }
+
+  var fitTimer = null;
+  function scheduleFit(){
+    if (fitTimer) clearTimeout(fitTimer);
+    fitTimer = setTimeout(applyFit, 120);
+  }
+
+  function makeRow(anchor){
+    var d = document.createElement("div");
+    if (anchor) d.className = anchor.className;
+    return d;
+  }
+
+  function inject(){
+    var panel = q(".print-settings-panel");
+    if (!panel || panel.querySelector("#printRowH")) return;
+    var scaleInput = panel.querySelector("#printPageScale");
+    var anchor = scaleInput ? scaleInput.parentElement : null;
+
+    var row = makeRow(anchor);
+    var lab = document.createElement("label");
+    var input = document.createElement("input");
+    input.type = "range";
+    input.id = "printRowH";
+    input.min = "0"; input.max = String(MAXMM); input.step = "1";
+    var v = readRow();
+    input.value = String(v);
+    lab.textContent = rowText(v);
+    input.addEventListener("input", function(){
+      var nv = parseInt(input.value, 10);
+      try { localStorage.setItem(ROWKEY, String(nv)); } catch(e){}
+      applyRow(nv);
+      lab.textContent = rowText(nv);
+      scheduleFit();
+    });
+    row.appendChild(lab);
+    row.appendChild(input);
+    if (anchor && anchor.parentElement) anchor.parentElement.insertBefore(row, anchor.nextSibling);
+    else panel.appendChild(row);
+
+    var fitRow = makeRow(anchor);
+    var fitLab = document.createElement("label");
+    fitLab.textContent = "画面に合わせる";
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = "previewFit";
+    cb.checked = readFit();
+    cb.style.flex = "0 0 auto";
+    cb.style.width = "18px";
+    cb.style.height = "18px";
+    cb.addEventListener("change", function(){
+      try { localStorage.setItem(FITKEY, cb.checked ? "1" : "0"); } catch(e){}
+      applyFit();
+    });
+    fitRow.appendChild(fitLab);
+    fitRow.appendChild(cb);
+    if (row.parentElement) row.parentElement.insertBefore(fitRow, row.nextSibling);
+
+    var scaleEl = panel.querySelector("#printPageScale");
+    if (scaleEl) scaleEl.addEventListener("input", scheduleFit);
+    var obs = new MutationObserver(scheduleFit);
+    var wrap = q(".print-preview-wrap");
+    if (wrap) obs.observe(wrap, { childList: true, subtree: true });
+  }
+
+  applyRow(readRow());
+  function boot(){ inject(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+  setInterval(boot, 1500);
+  window.addEventListener("resize", scheduleFit);
+  document.addEventListener("click", scheduleFit, true);
+  setTimeout(applyFit, 800);
+})();
