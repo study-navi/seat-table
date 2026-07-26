@@ -185,9 +185,9 @@ width:100%; padding:6px 7px; border:1px solid var(--line); border-radius:5px; ba
 .teacher-col select{ font-weight:700; color: var(--blue-dark); }
 
 .student-cell{ flex-direction:column; align-items:stretch; gap:4px; }
-.student-cell.status-course{ background: #eef3ff; }
-.student-cell.status-transfer{ background: #eefaf1; }
-.student-cell.status-absent{ background: #fdecea; }
+.student-cell.status-course{ background: #eef3ff !important; }
+.student-cell.status-transfer{ background: #eefaf1 !important; }
+.student-cell.status-absent{ background: #fdecea !important; }
 .student-select{ font-weight:600; }
 .status-buttons{ display:flex; gap:4px; }
 .status-buttons button{
@@ -386,4 +386,6 @@ main{ max-width:none; }
 .chip{ font-size:8pt; padding:1px 5px; }
 .chip button{ display:none; }
 .print-image{ display:block !important; position:fixed; z-index:2; }
+#view-print .page-head, #view-print .print-settings-panel{ display:none !important; }
+#view-print .print-preview-wrap{ padding:0; margin:0; }
 }
