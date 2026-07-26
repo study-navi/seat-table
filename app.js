@@ -2194,7 +2194,11 @@ document.addEventListener("DOMContentLoaded", init);
       var e = new Date(Y - 5 - g, 3, 1);
       if (b >= s && b <= e) break;
     }
-    if (g > 12) return "";
+    if (g > 12){
+      /* 小1の範囲より後に生まれていれば未就学、それより前なら高3を終えている */
+      if (b > new Date(Y - 6, 3, 1)) return "未就学";
+      return "既卒";
+    }
     if (g <= 6) return "小" + g;
     if (g <= 9) return "中" + (g - 6);
     return "高" + (g - 9);
