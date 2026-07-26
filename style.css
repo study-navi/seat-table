@@ -382,7 +382,11 @@ border-right:0.75pt solid #888; background:#fafafa;
 padding:2mm 0;
 }
 .block-head, .block-index{ display:none !important; }
-.sheet-wrap{ grid-column: 2; }
+.sheet-wrap{ grid-column: 2; overflow: visible !important; }
+/* 時間が未入力の枠では縦書き時間バーを出さず、表を全幅で使う */
+.lesson-block[data-time=""]{ grid-template-columns: 1fr; }
+.lesson-block[data-time=""]::before{ display:none !important; }
+.lesson-block[data-time=""] .sheet-wrap{ grid-column: 1; }
 .sheet-header, .seat-row-wrap, .group-row-wrap{ min-width:0; grid-template-columns: 9mm 20mm 13mm 9mm minmax(0,1fr) 13mm 9mm minmax(0,1fr); }
 .th.side-left, .th.side-right{ grid-column: span 3; }
 .th.blank2{ grid-column: span 2; }
