@@ -1701,3 +1701,76 @@ document.addEventListener("DOMContentLoaded", init);
   document.addEventListener("click", scheduleFit, true);
   setTimeout(applyFit, 800);
 })();
+
+/* ==========================================================
+   集団行: 集団名に含まれる時間を読み取り、空いている科目列に表示
+   例) "HALLO土曜日-15:10~16:00" -> "15:10〜16:00"
+   時間が書かれていない集団（中3社会-2026夏期集団 など）は何も出さない。
+   科目が既に入っている行にも出さない。
+   ========================================================== */
+(function(){
+  var RE = /(\d{1,2})\s*[:：]\s*(\d{2})\s*[~〜～\-–—]\s*(\d{1,2})\s*[:：]\s*(\d{2})/;
+  function pad(n){ n = String(parseInt(n, 10)); return n.length < 2 ? ("0" + n) : n; }
+  function timeOf(name){
+    var m = RE.exec(String(name || ""));
+    if (!m) return "";
+    return pad(m[1]) + ":" + m[2] + "〜" + pad(m[3]) + ":" + m[4];
+  }
+  function nameOf(row){
+    var i = row.querySelector(".group-name-cell input");
+    if (i) return i.value;
+    var d = row.querySelector(".group-name-cell");
+    return d ? d.textContent : "";
+  }
+  function subjectCell(row){
+    var cs = row.children;
+    for (var i = 0; i < cs.length; i++){
+      var cl = " " + cs[i].className + " ";
+      if (cl.indexOf(" group-row ") >= 0
+        && cl.indexOf("group-count") < 0
+        && cl.indexOf("group-name") < 0
+        && cl.indexOf("group-students") < 0
+        && cl.indexOf("seat-num") < 0
+        && cl.indexOf("teacher-col") < 0) return cs[i];
+    }
+    return null;
+  }
+  function clear(cell, input){
+    var t = cell.querySelector(".group-time-auto");
+    if (t && t.parentNode) t.parentNode.removeChild(t);
+    if (input) input.style.display = "";
+  }
+  function decorate(){
+    var rows = document.querySelectorAll(".group-row-wrap");
+    for (var i = 0; i < rows.length; i++){
+      var row = rows[i];
+      var cell = subjectCell(row);
+      if (!cell) continue;
+      var input = cell.querySelector("input");
+      if (cell.getAttribute("data-group-time-off") === "1"){ clear(cell, input); continue; }
+      var t = timeOf(nameOf(row));
+      var filled = input && input.value && input.value.trim() !== "";
+      if (!t || filled){ clear(cell, input); continue; }
+      var tag = cell.querySelector(".group-time-auto");
+      if (!tag){
+        tag = document.createElement("span");
+        tag.className = "group-time-auto";
+        tag.title = "集団名から読み取った時間（クリックすると科目を入力できます）";
+        tag.addEventListener("click", function(ev){
+          var c = ev.currentTarget.parentNode;
+          if (!c) return;
+          c.setAttribute("data-group-time-off", "1");
+          var ip = c.querySelector("input");
+          if (ev.currentTarget.parentNode) ev.currentTarget.parentNode.removeChild(ev.currentTarget);
+          if (ip){ ip.style.display = ""; ip.focus(); }
+        });
+        cell.appendChild(tag);
+      }
+      if (tag.textContent !== t) tag.textContent = t;
+      if (input) input.style.display = "none";
+    }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", decorate);
+  else decorate();
+  setInterval(decorate, 1000);
+})();
