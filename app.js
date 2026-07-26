@@ -1589,7 +1589,7 @@ document.addEventListener("DOMContentLoaded", init);
 (function(){
   var ROWKEY = "seat-table-print-row-h";
   var FITKEY = "seat-table-preview-fit";
-  var MAXMM = 22;
+  var MAXMM = 30;
   function q(s){ return document.querySelector(s); }
 
   function readRow(){
