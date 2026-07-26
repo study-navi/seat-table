@@ -1881,6 +1881,9 @@ document.addEventListener("DOMContentLoaded", init);
         /* プレビューでの操作を殺すルールは複製しない */
         if (sel.indexOf("[data-empty-sel") >= 0) continue;
         if (sel.indexOf(".btn") >= 0) continue;
+        /* 画像は印刷用の position:fixed を持ち込むと、プレビューで
+           画面基準に固定されて位置・サイズが操作できなくなる */
+        if (sel.indexOf(".print-image") >= 0) continue;
         keep.push(".print-preview-page " + sel);
       }
       if (!keep.length) continue;
