@@ -2317,21 +2317,23 @@ document.addEventListener("DOMContentLoaded", init);
 (function(){
   var KEY = "seat-table-active-tab";
   function save(){
-    var a = document.querySelector(".tab-btn.active");
-    if (!a) return;
-    try { sessionStorage.setItem(KEY, a.textContent.trim()); } catch(e){}
+    /* タブ名は件数バッジを含み変動するため、位置で覚える */
+    var btns = document.querySelectorAll(".tab-btn"), i;
+    for (i = 0; i < btns.length; i++){
+      if (/(^|\s)active(\s|$)/.test(btns[i].className)){
+        try { sessionStorage.setItem(KEY, String(i)); } catch(e){}
+        return;
+      }
+    }
   }
   function restore(){
     var want = null;
     try { want = sessionStorage.getItem(KEY); } catch(e){ return; }
-    if (!want) return;
-    var btns = document.querySelectorAll(".tab-btn"), i;
-    for (i = 0; i < btns.length; i++){
-      if (btns[i].textContent.trim() === want){
-        if (!/(^|\s)active(\s|$)/.test(btns[i].className)) btns[i].click();
-        return;
-      }
-    }
+    var i = parseInt(want, 10);
+    if (!isFinite(i) || i < 0) return;
+    var btns = document.querySelectorAll(".tab-btn");
+    if (i >= btns.length) return;
+    if (!/(^|\s)active(\s|$)/.test(btns[i].className)) btns[i].click();
   }
   document.addEventListener("click", function(ev){
     var t = ev.target;
