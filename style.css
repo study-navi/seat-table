@@ -321,7 +321,7 @@ main{ padding: 10px; }
 /* ---------- On-screen print preview (mimics the printed A3 landscape look) ---------- */
 .print-preview-wrap{ overflow-x:auto; padding:20px 0 40px; display:flex; justify-content:center; }
 .print-preview-page{
-position:relative; background:#fff; width: calc(404mm / var(--print-page-scale, 1)); zoom: var(--print-page-scale, 1); padding:0;
+position:relative; background:#fff; flex:0 0 auto; width: calc(404mm / var(--print-page-scale, 1)); zoom: var(--print-page-scale, 1); padding:0;
 border:1px solid var(--line); box-shadow:0 4px 20px rgba(20,26,38,0.08);
 }
 .print-preview-page .blocks{ display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
