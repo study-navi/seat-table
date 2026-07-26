@@ -1908,3 +1908,27 @@ document.addEventListener("DOMContentLoaded", init);
   else build();
   setTimeout(build, 1500);
 })();
+
+/* ==========================================================
+   未選択のセレクトに data-empty-sel を立てる
+   印刷・プレビューでは「生徒を選択」「—」を空白にするため。
+   画面編集時はCSS側で対象外なので今までどおり表示される。
+   ========================================================== */
+(function(){
+  function mark(){
+    var sels = document.querySelectorAll(".cell select");
+    for (var i = 0; i < sels.length; i++){
+      var s = sels[i];
+      var empty = (s.value === "" || s.value === null);
+      if (empty){
+        if (s.getAttribute("data-empty-sel") !== "1") s.setAttribute("data-empty-sel", "1");
+      } else if (s.hasAttribute("data-empty-sel")){
+        s.removeAttribute("data-empty-sel");
+      }
+    }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mark);
+  else mark();
+  document.addEventListener("change", function(){ setTimeout(mark, 0); }, true);
+  setInterval(mark, 800);
+})();
