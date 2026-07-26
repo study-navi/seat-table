@@ -1618,7 +1618,7 @@ document.addEventListener("DOMContentLoaded", init);
     var r = page.getBoundingClientRect();
     if (!r.width || !r.height) return;
     var availW = wrap.clientWidth;
-    var availH = Math.max(300, window.innerHeight - wrap.getBoundingClientRect().top - 24);
+    var availH = Math.max(360, window.innerHeight - 140);
     var f = Math.min(availW / r.width, availH / r.height, 1);
     if (!isFinite(f) || f <= 0) f = 1;
     f = Math.max(0.2, f);
