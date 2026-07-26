@@ -1735,6 +1735,21 @@ document.addEventListener("DOMContentLoaded", init);
     }
     return null;
   }
+  function clearInline(row){
+    var s = row.querySelector(".group-time-inline");
+    if (s && s.parentNode) s.parentNode.removeChild(s);
+  }
+  function showInline(row, t){
+    var nc = row.querySelector(".group-name-cell");
+    if (!nc) return;
+    var s = nc.querySelector(".group-time-inline");
+    if (!s){
+      s = document.createElement("span");
+      s.className = "group-time-inline";
+      nc.appendChild(s);
+    }
+    if (s.textContent !== t) s.textContent = t;
+  }
   function clear(cell, input){
     var t = cell.querySelector(".group-time-auto");
     if (t && t.parentNode) t.parentNode.removeChild(t);
@@ -1748,9 +1763,13 @@ document.addEventListener("DOMContentLoaded", init);
       if (!cell) continue;
       var input = cell.querySelector("input");
       if (cell.getAttribute("data-group-time-off") === "1"){ clear(cell, input); continue; }
-      var t = timeOf(nameOf(row));
+      var t = "";
+      if (typeof window.__seatGroupTime === "function") t = window.__seatGroupTime(row) || "";
+      if (!t) t = timeOf(nameOf(row));
       var filled = input && input.value && input.value.trim() !== "";
-      if (!t || filled){ clear(cell, input); continue; }
+      if (!t){ clear(cell, input); clearInline(row); continue; }
+      if (filled){ clear(cell, input); showInline(row, t); continue; }
+      clearInline(row);
       var tag = cell.querySelector(".group-time-auto");
       if (!tag){
         tag = document.createElement("span");
@@ -1773,4 +1792,67 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", decorate);
   else decorate();
   setInterval(decorate, 1000);
+})();
+
+/* ==========================================================
+   eWeb取込payloadから集団の実施時間を拾って保存する
+   payload例: {"date":"2026-07-27","komas":[{"id":47,"start":"13:50","end":"15:20"}],
+              "groups":[{"koma_id":47,"start":"14:50","end":"15:50"}]}
+   コマのstart/endでブロックを特定し、集団のstart/endを対応付ける。
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-group-times";
+  function digits(s){ return String(s || "").replace(/[^0-9]/g, ""); }
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+  function save(o){ try { localStorage.setItem(KEY, JSON.stringify(o)); } catch(e){} }
+  function absorb(text){
+    var p = null;
+    try { p = JSON.parse(text); } catch(e){ return false; }
+    if (!p || !p.date || !p.komas || !p.groups) return false;
+    if (!p.komas.length || !p.groups.length) return false;
+    var byId = {}, i;
+    for (i = 0; i < p.komas.length; i++) byId[p.komas[i].id] = p.komas[i];
+    var map = {}, n = 0;
+    for (i = 0; i < p.groups.length; i++){
+      var g = p.groups[i];
+      if (!g || !g.start || !g.end) continue;
+      var k = byId[g.koma_id];
+      if (!k || !k.start || !k.end) continue;
+      map[digits(k.start) + digits(k.end)] = g.start + "〜" + g.end;
+      n++;
+    }
+    if (!n) return false;
+    var all = load();
+    all[p.date] = map;
+    save(all);
+    return true;
+  }
+  function watch(){
+    var tas = document.querySelectorAll("textarea"), i;
+    for (i = 0; i < tas.length; i++){
+      var ta = tas[i];
+      if (ta.getAttribute("data-gt-watch") === "1") continue;
+      ta.setAttribute("data-gt-watch", "1");
+      ta.addEventListener("input", function(ev){ absorb(ev.target.value); });
+      ta.addEventListener("paste", function(ev){
+        var t = ev.target;
+        setTimeout(function(){ absorb(t.value); }, 60);
+      });
+    }
+  }
+  function dateOf(row){
+    var v = row.closest ? row.closest(".view") : null;
+    var inp = v ? v.querySelector("input[type=\"date\"]") : null;
+    if (!inp) inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  window.__seatGroupTime = function(row){
+    var blk = row.closest ? row.closest(".lesson-block") : null;
+    if (!blk) return "";
+    var m = load()[dateOf(row)];
+    if (!m) return "";
+    return m[digits(blk.getAttribute("data-time"))] || "";
+  };
+  watch();
+  setInterval(watch, 1200);
 })();
