@@ -434,17 +434,9 @@ ${COMMON_TIME_PRESETS.map(t=>`<option value="${t}" ${t===block.time?"selected":"
 <div class="sheet-header">
 <div class="th">席</div>
 <div class="th">担当講師</div>
-<div class="th side-left">左側</div>
-<div class="th side-right">右側</div>
-</div>
-<div class="sheet-header sub">
-<div class="th sub-head blank2"></div>
-<div class="th sub-head">科目</div>
-<div class="th sub-head">学年</div>
-<div class="th sub-head">生徒名</div>
-<div class="th sub-head">科目</div>
-<div class="th sub-head">学年</div>
-<div class="th sub-head">生徒名</div>
+<div class="th">科目</div>
+<div class="th">学年</div>
+<div class="th">生徒名</div>
 </div>
 <div class="sheet-body">
 ${seatRows}
@@ -459,14 +451,14 @@ function seatRowHtml(block, seat, si){
 const teacherOptions = `<option value="">—</option>` + state.teachers.map(t=>`<option value="${escapeHtml(t.name)}" ${seat.teacher===t.name?"selected":""}>${escapeHtml(t.name)}</option>`).join("");
 const studOpts = (selected)=> `<option value="">生徒を選択</option>` + state.students.map(s=>`<option value="${escapeHtml(s.name)}" ${selected===s.name?"selected":""}>${escapeHtml(s.name)}</option>`).join("");
 
-const sideHtml = (side, key)=>`
-<div class="cell">
+const subRowHtml = (side, key, isFirst)=>`
+<div class="cell sub-row-cell ${isFirst?'':'sub-row-second'}">
 <input list="subjectList" class="subject-select js-subject" data-side="${key}" value="${escapeHtml(side.subject)}" placeholder="—">
 </div>
-<div class="cell">
+<div class="cell sub-row-cell ${isFirst?'':'sub-row-second'}">
 <input type="text" class="grade-input js-grade" data-side="${key}" value="${escapeHtml(side.grade)}" placeholder="学年">
 </div>
-<div class="cell student-cell status-${side.status} js-student-cell" data-side="${key}">
+<div class="cell sub-row-cell ${isFirst?'':'sub-row-second'} student-cell status-${side.status} js-student-cell" data-side="${key}">
 <select class="student-select js-student" data-side="${key}">${studOpts(side.student)}</select>
 <div class="status-buttons">
 <button type="button" class="js-status ${side.status==='course'?'active course':''}" data-side="${key}" data-status="course">講習</button>
@@ -487,8 +479,8 @@ return `
 <div class="cell teacher-col">
 <select class="js-teacher">${teacherOptions}</select>
 </div>
-${sideHtml(seat.left,"left")}
-${sideHtml(seat.right,"right")}
+${subRowHtml(seat.left,"left",true)}
+${subRowHtml(seat.right,"right",false)}
 </div>
 `;
 }
@@ -508,15 +500,11 @@ return `
 <div class="cell group-row">
 <input list="subjectList" class="subject-select js-g-subject" value="${escapeHtml(g.subject)}" placeholder="科目">
 </div>
-<div class="cell group-row group-count-cell">
-<span class="group-count-badge">${g.students.length}名</span>
-</div>
-<div class="cell group-row group-name-cell">
+<div class="cell group-row group-name-students-cell" style="grid-column: span 2;">
 <input type="text" class="js-g-name" value="${escapeHtml(g.name)}" placeholder="授業名／グループ名">
-</div>
-<div class="cell group-row group-students-cell" style="grid-column: span 3;">
 <div class="chip-list">${chips}</div>
 <div class="group-students-footer">
+<span class="group-count-badge">${g.students.length}名</span>
 <select class="js-g-add-student add-student-chip">
 <option value="">＋ 生徒を追加</option>
 ${remainingStudents.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join("")}
@@ -527,6 +515,7 @@ ${remainingStudents.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s
 </div>
 `;
 }
+
 
 function bindBlockEvents(day, block, bi){
 const root = document.querySelector(`.lesson-block[data-block="${block.id}"]`);
