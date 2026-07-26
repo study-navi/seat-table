@@ -367,7 +367,7 @@ main{ max-width:none; }
 .lesson-block{ border:1.1pt solid #55627a; border-radius:0; break-inside:avoid; }
 .block-head{ padding:1.2mm 3mm; background:#fff; border-bottom:1pt solid #55627a; }
 .block-head .time-input span, .block-head .time-input input{ font-size:9pt; border:none; }
-.sheet-header, .seat-row-wrap, .group-row-wrap{ min-width:0; grid-template-columns: 8mm 21mm 13mm 8.5mm minmax(0,1fr) 13mm 8.5mm minmax(0,1fr); }
+.sheet-header, .seat-row-wrap, .group-row-wrap{ min-width:0; grid-template-columns: 10mm 26mm 24mm 11mm minmax(0,1fr) 24mm 11mm minmax(0,1fr); }
 .th.side-left, .th.side-right{ grid-column: span 3; }
 .th.blank2{ grid-column: span 2; }
 .th{ font-size:7pt; padding:1mm; }
