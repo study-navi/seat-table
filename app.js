@@ -2223,6 +2223,43 @@ document.addEventListener("DOMContentLoaded", init);
     try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
     location.reload();
   }
+  function gradeRank(g){
+    var m = /^(小|中|高)(\d)$/.exec(String(g || ""));
+    if (!m) return 99;
+    var base = (m[1] === "小") ? 0 : ((m[1] === "中") ? 6 : 9);
+    return base + (+m[2]);
+  }
+  function valOf(st, key){
+    if (key === "name") return st.name || "";
+    if (key === "grade") return st.grade || "";
+    return st.birthdate || "";
+  }
+  function cmpKey(a, b, key){
+    if (key === "name") return String(a.name||"").localeCompare(String(b.name||""), "ja");
+    if (key === "grade") return gradeRank(a.grade) - gradeRank(b.grade);
+    var x = a.birthdate || "", y = b.birthdate || "";
+    return x < y ? -1 : (x > y ? 1 : 0);
+  }
+  function doSort(key, dir){
+    var s = state();
+    if (!s || !s.students) return;
+    var label = (key === "name") ? "氏名" : ((key === "grade") ? "学年" : "生年月日");
+    var dirLabel = (dir === "desc") ? "降順" : "昇順";
+    var filled = 0, i;
+    for (i = 0; i < s.students.length; i++) if (valOf(s.students[i], key)) filled++;
+    var msg = label + "の" + dirLabel + "で並べ替えます。\n値あり: " + filled + "件\n未入力: " + (s.students.length - filled) + "件（昇降どちらでも末尾）\n\n保存して表示を更新します。";
+    if (!window.confirm(msg)) return;
+    s.students.sort(function(a, b){
+      var ae = !valOf(a, key), be = !valOf(b, key);
+      if (ae && be) return 0;
+      if (ae) return 1;
+      if (be) return -1;
+      var r = cmpKey(a, b, key);
+      return (dir === "desc") ? -r : r;
+    });
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
+    location.reload();
+  }
   function sortByBirthdate(){
     var s = state();
     if (!s || !s.students) return;
@@ -2248,10 +2285,61 @@ document.addEventListener("DOMContentLoaded", init);
     row.style.display = "flex"; row.style.gap = "8px";
     row.style.flexWrap = "wrap"; row.style.marginTop = "10px";
     row.appendChild(mkBtn("生年月日から学年を入れる", fillGrades));
-    row.appendChild(mkBtn("生年月日順に並べ替え", sortByBirthdate));
+    var sortLab = document.createElement("span");
+    sortLab.textContent = "並べ替え:";
+    sortLab.style.fontSize = "13px";
+    var keySel = document.createElement("select");
+    [["birthdate", "生年月日"], ["name", "氏名"], ["grade", "学年"]].forEach(function(o){
+      var op = document.createElement("option");
+      op.value = o[0]; op.textContent = o[1]; keySel.appendChild(op);
+    });
+    var dirSel = document.createElement("select");
+    [["asc", "昇順"], ["desc", "降順"]].forEach(function(o){
+      var op = document.createElement("option");
+      op.value = o[0]; op.textContent = o[1]; dirSel.appendChild(op);
+    });
+    row.appendChild(sortLab);
+    row.appendChild(keySel);
+    row.appendChild(dirSel);
+    row.appendChild(mkBtn("並べ替える", function(){ doSort(keySel.value, dirSel.value); }));
     box.appendChild(row);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
   else inject();
   setInterval(inject, 1500);
+})();
+
+/* ==========================================================
+   再読み込み後に表示中のタブを維持する
+   並べ替えや学年一括入力の後に座席表へ戻ってしまうのを防ぐ。
+   sessionStorage なので次回の起動時は通常どおり。
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-active-tab";
+  function save(){
+    var a = document.querySelector(".tab-btn.active");
+    if (!a) return;
+    try { sessionStorage.setItem(KEY, a.textContent.trim()); } catch(e){}
+  }
+  function restore(){
+    var want = null;
+    try { want = sessionStorage.getItem(KEY); } catch(e){ return; }
+    if (!want) return;
+    var btns = document.querySelectorAll(".tab-btn"), i;
+    for (i = 0; i < btns.length; i++){
+      if (btns[i].textContent.trim() === want){
+        if (!/(^|\s)active(\s|$)/.test(btns[i].className)) btns[i].click();
+        return;
+      }
+    }
+  }
+  document.addEventListener("click", function(ev){
+    var t = ev.target;
+    while (t && t !== document){
+      if (t.classList && t.classList.contains("tab-btn")){ setTimeout(save, 60); return; }
+      t = t.parentNode;
+    }
+  }, true);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(restore, 300); });
+  else setTimeout(restore, 300);
 })();
