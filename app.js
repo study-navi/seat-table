@@ -1980,3 +1980,46 @@ document.addEventListener("DOMContentLoaded", init);
   else inject();
   setInterval(inject, 1500);
 })();
+
+/* ==========================================================
+   プレビューの表示モード切り替え
+   ON  : 印刷と同じ見た目（8pt・9mm列。確認向け。行が12〜20pxで編集は困難）
+   OFF : 画面用の大きさ（編集向け）
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-print-look";
+  function isOn(){ return localStorage.getItem(KEY) !== "0"; }
+  function apply(){
+    var st = document.getElementById("preview-mirror-print");
+    if (st) st.disabled = !isOn();
+  }
+  function inject(){
+    var bar = document.querySelector(".print-panel-toggle");
+    if (!bar || bar.querySelector("#printLookToggle")) return;
+    bar.style.display = "flex";
+    bar.style.alignItems = "center";
+    bar.style.flexWrap = "wrap";
+    bar.style.gap = "12px";
+    var lab = document.createElement("label");
+    lab.style.fontSize = "13px";
+    lab.style.display = "inline-flex";
+    lab.style.alignItems = "center";
+    lab.style.gap = "6px";
+    lab.style.cursor = "pointer";
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = "printLookToggle";
+    cb.checked = isOn();
+    cb.addEventListener("change", function(){
+      try { localStorage.setItem(KEY, cb.checked ? "1" : "0"); } catch(e){}
+      apply();
+    });
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode("印刷と同じ見た目で表示（外すと編集しやすい大きさになります）"));
+    bar.appendChild(lab);
+    apply();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
+  else inject();
+  setInterval(function(){ inject(); apply(); }, 1500);
+})();
