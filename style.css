@@ -346,8 +346,7 @@ white-space:nowrap; text-align:center; cursor:text;
 :root{ --paper-w: 404mm; --paper-h: 281mm; }
 html[data-paper="portrait"]{ --paper-w: 281mm; --paper-h: 404mm; }
 .print-preview-page{ height: calc(var(--paper-h) / var(--print-page-scale, 1)); }
-/* 縦向きは2列だと窮屈なので1列にする */
-html[data-paper="portrait"] .print-preview-page .blocks{ grid-template-columns: 1fr; }
+/* 縦向きでも2列を維持する（1列にすると縦に伸びて逆に収まらない） */
 /* 科目・学年の列幅は文字サイズに追従させる（2文字＋余白ぶん） */
 :root{
 --print-subj-col: calc(var(--print-subject-size, 15pt) * 2 + 3mm);
@@ -467,7 +466,7 @@ padding:0 !important; border:none !important; box-shadow:none !important;
 /* 縦横比は印刷でも維持する。解除するとページ枠が内容なりに縮み、
    画像の % 位置の基準が変わってプレビューとずれる */
 #view-print .print-preview-page{ transform: none !important; height: var(--paper-h) !important; }
-html[data-paper="portrait"] .blocks{ grid-template-columns: 1fr !important; }
+
 #view-print .print-preview-wrap{ height: auto !important; overflow: visible !important; }
 .seat-row-wrap, .group-row-wrap{ min-height: var(--print-row-h, 0px); }
 .group-time-auto{ font-size:7.5pt; color:#000; white-space:normal; line-height:1.15; }
