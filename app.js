@@ -1874,6 +1874,9 @@ document.addEventListener("DOMContentLoaded", init);
       for (var j = 0; j < parts.length; j++){
         var sel = parts[j].trim();
         if (!sel || SKIP.test(sel)) continue;
+        /* プレビューでの操作を殺すルールは複製しない */
+        if (sel.indexOf("[data-empty-sel") >= 0) continue;
+        if (sel.indexOf(".btn") >= 0) continue;
         keep.push(".print-preview-page " + sel);
       }
       if (!keep.length) continue;
@@ -1931,4 +1934,49 @@ document.addEventListener("DOMContentLoaded", init);
   else mark();
   document.addEventListener("change", function(){ setTimeout(mark, 0); }, true);
   setInterval(mark, 800);
+})();
+
+/* ==========================================================
+   印刷プレビューの表示設定パネルを折りたためるようにする
+   スライダーと画像欄で縦に長くなり、プレビューが画面外へ
+   押し下げられるため。初期状態は閉じる。
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-print-panel-open";
+  function isOpen(){ return localStorage.getItem(KEY) === "1"; }
+  function apply(panel, open){
+    var kids = panel.children, i;
+    for (i = 0; i < kids.length; i++){
+      if (kids[i].getAttribute("data-panel-toggle") === "1") continue;
+      kids[i].style.display = open ? "" : "none";
+    }
+  }
+  function inject(){
+    var panel = document.querySelector(".print-settings-panel");
+    if (!panel || panel.querySelector("[data-panel-toggle]")) return;
+    var bar = document.createElement("div");
+    bar.setAttribute("data-panel-toggle", "1");
+    bar.className = "print-panel-toggle";
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn";
+    function label(){
+      btn.textContent = isOpen()
+        ? "表示設定を閉じる"
+        : "表示設定を開く（文字サイズ・行の高さ・画像）";
+    }
+    btn.addEventListener("click", function(){
+      var next = !isOpen();
+      try { localStorage.setItem(KEY, next ? "1" : "0"); } catch(e){}
+      apply(panel, next);
+      label();
+    });
+    label();
+    bar.appendChild(btn);
+    panel.insertBefore(bar, panel.firstChild);
+    apply(panel, isOpen());
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
+  else inject();
+  setInterval(inject, 1500);
 })();
