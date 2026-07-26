@@ -200,6 +200,8 @@ border:1px solid var(--line); background:#fff; border-radius:4px; font-size:0.7e
 .group-row{ background:#faf8ff; }
 .group-row .cell{ border-bottom:1px solid #e6def5; min-height:46px; }
 .group-name-cell input{ font-weight:600; }
+.group-count-cell{ justify-content:center; }
+.group-count-badge{ font-size:0.78em; color:var(--ink-soft); background:#efe8fb; padding:2px 8px; border-radius:10px; }
 .group-students-cell{ flex-wrap:wrap; align-items:flex-start; gap:6px; }
 .group-students-footer{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; width:100%; margin-top:4px; }
 .group-students-footer .add-student-chip{ flex:1; min-width:120px; }
@@ -297,8 +299,14 @@ main{ padding: 10px; }
 .weekday-chip{ min-width:44px; padding:5px 6px; }
 }
 
-/* ---------- Print logo / watermark (hidden on screen, shown when printing) ---------- */
-.print-logo, .print-watermark{ display:none; }
+/* ---------- Print images (hidden on screen except inside preview, shown when printing) ---------- */
+.print-image{ display:none; }
+.image-list{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.image-row{ display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+.image-thumb{ width:48px; height:48px; object-fit:cover; border-radius:6px; border:1px solid var(--line); flex-shrink:0; }
+.image-row-controls{ display:flex; flex-direction:column; gap:4px; flex:1; }
+.image-row-controls label{ display:flex; align-items:center; gap:6px; font-size:0.8em; color:var(--ink-soft); }
+.image-row-controls input[type=range]{ flex:1; }
 
 /* ---------- Print settings panel (in the Print Preview tab) ---------- */
 .print-settings-panel h3{ margin:0 0 10px; font-size:0.95em; }
@@ -329,13 +337,7 @@ grid-template-columns: 32px 90px 60px 40px minmax(0,1fr) 60px 40px minmax(0,1fr)
 .print-preview-page .student-select{ font-size: var(--print-student-size); font-weight:700; }
 .print-preview-page .grade-input{ font-size: var(--print-grade-size); text-align:center; }
 .print-preview-page .teacher-col select{ font-size:9pt; }
-.print-preview-page .print-logo{ display:block; position:absolute; top:14px; max-height:60px; z-index:2; }
-.print-preview-page .print-logo.corner-tr{ right:16px; }
-.print-preview-page .print-logo.corner-tl{ left:16px; }
-.print-preview-page .print-watermark{
-display:block; position:absolute; inset:0; width:100%; height:100%;
-object-fit:contain; pointer-events:none; z-index:0;
-}
+.print-preview-page .print-image{ display:block; position:absolute; z-index:2; touch-action:none; }
 .print-preview-page .page-head, .print-preview-page .preview-blocks{ position:relative; z-index:1; }
 
 @media (max-width: 860px){
@@ -378,11 +380,5 @@ main{ max-width:none; }
 .group-row{ background:#f6f2fd !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .chip{ font-size:8pt; padding:1px 5px; }
 .chip button{ display:none; }
-.print-logo{ display:block !important; position:fixed; top:5mm; max-height:18mm; z-index:2; }
-.print-logo.corner-tr{ right:5mm; }
-.print-logo.corner-tl{ left:5mm; }
-.print-watermark{
-display:block !important; position:fixed; top:0; left:0; width:100%; height:100%;
-object-fit:contain; z-index:-1;
-}
+.print-image{ display:block !important; position:fixed; z-index:2; }
 }

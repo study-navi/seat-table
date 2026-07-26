@@ -59,9 +59,20 @@ data.printSettings = (data.printSettings && typeof data.printSettings === "objec
 data.printSettings.subjectSize = data.printSettings.subjectSize || 15;
 data.printSettings.studentSize = data.printSettings.studentSize || 10.5;
 data.printSettings.gradeSize = data.printSettings.gradeSize || 7.5;
-data.printSettings.logoImage = data.printSettings.logoImage || null;
-data.printSettings.logoMode = data.printSettings.logoMode || "corner-tr";
-data.printSettings.logoOpacity = (typeof data.printSettings.logoOpacity === "number") ? data.printSettings.logoOpacity : 0.18;
+if(!Array.isArray(data.printSettings.images)){
+data.printSettings.images = [];
+if(data.printSettings.logoImage){
+data.printSettings.images.push({
+id: uid(), src: data.printSettings.logoImage,
+xPct: data.printSettings.logoMode==="corner-tl" ? 2 : (data.printSettings.logoMode==="watermark" ? 30 : 85),
+yPct: 2, widthPct: data.printSettings.logoMode==="watermark" ? 40 : 12,
+opacity: (typeof data.printSettings.logoOpacity === "number") ? data.printSettings.logoOpacity : 0.18
+});
+}
+}
+delete data.printSettings.logoImage;
+delete data.printSettings.logoMode;
+delete data.printSettings.logoOpacity;
 // normalize students
 data.students.forEach(s=>{
 if(!s.id) s.id = uid();
@@ -277,7 +288,7 @@ el.innerHTML = `
 <div class="panel page-head">
 <p class="eyebrow">LESSON SEATING</p>
 <h2>${dateLabel}</h2>
-${logoHtml(false)}
+${imagesHtml()}
 <div class="seat-toolbar">
 <label class="date-field">日付
 <input type="date" id="datePicker" value="${currentDate}">
@@ -494,11 +505,14 @@ return `
 <div class="cell teacher-col group-row">
 <select class="js-g-teacher">${teacherOptions}</select>
 </div>
-<div class="cell group-row group-name-cell" style="grid-column: span 2;">
-<input type="text" class="js-g-name" value="${escapeHtml(g.name)}" placeholder="授業名／グループ名">
-</div>
-<div class="cell group-row" style="grid-column: span 1;">
+<div class="cell group-row">
 <input list="subjectList" class="subject-select js-g-subject" value="${escapeHtml(g.subject)}" placeholder="科目">
+</div>
+<div class="cell group-row group-count-cell">
+<span class="group-count-badge">${g.students.length}名</span>
+</div>
+<div class="cell group-row group-name-cell">
+<input type="text" class="js-g-name" value="${escapeHtml(g.name)}" placeholder="授業名／グループ名">
 </div>
 <div class="cell group-row group-students-cell" style="grid-column: span 3;">
 <div class="chip-list">${chips}</div>
@@ -1228,13 +1242,11 @@ document.documentElement.style.setProperty("--print-student-size", ps.studentSiz
 document.documentElement.style.setProperty("--print-grade-size", ps.gradeSize + "pt");
 }
 
-function logoHtml(forPreview){
-const ps = state.printSettings;
-if(!ps.logoImage) return "";
-if(ps.logoMode === "watermark"){
-return `<img class="print-watermark" src="${ps.logoImage}" style="opacity:${ps.logoOpacity}">`;
-}
-return `<img class="print-logo ${ps.logoMode}" src="${ps.logoImage}" style="opacity:${ps.logoOpacity}">`;
+function imagesHtml(){
+return (state.printSettings.images||[]).map(img=>`
+<img class="print-image" data-img-id="${img.id}" src="${img.src}" draggable="false"
+style="left:${img.xPct}%; top:${img.yPct}%; width:${img.widthPct}%; opacity:${img.opacity};">
+`).join("");
 }
 
 function resizeImageDataUrl(dataUrl, maxDim, cb){
@@ -1253,15 +1265,20 @@ cb(canvas.toDataURL("image/jpeg", 0.85));
 img.src = dataUrl;
 }
 
-function handleLogoFile(file){
+function addImageFile(file){
 if(!file || file.type.indexOf("image") === -1){ showToast("画像ファイルを選択してください", true); return; }
 const reader = new FileReader();
 reader.onload = ()=>{
 resizeImageDataUrl(reader.result, 900, (resized)=>{
-state.printSettings.logoImage = resized;
+const count = state.printSettings.images.length;
+state.printSettings.images.push({
+id: uid(), src: resized,
+xPct: 8 + (count % 5) * 6, yPct: 8 + (count % 5) * 6,
+widthPct: 18, opacity: 1
+});
 saveState();
 renderPrintPreviewView();
-showToast("画像を設定しました");
+showToast("画像を追加しました");
 });
 };
 reader.readAsDataURL(file);
@@ -1274,12 +1291,43 @@ const items = e.clipboardData && e.clipboardData.items;
 if(!items) return;
 for(const item of items){
 if(item.type.indexOf("image") !== -1){
-const file = item.getAsFile();
-handleLogoFile(file);
+addImageFile(item.getAsFile());
 e.preventDefault();
 break;
 }
 }
+});
+}
+
+function bindImageDrag(){
+const page = document.getElementById("previewPage");
+if(!page) return;
+let dragging = null;
+page.querySelectorAll(".print-image").forEach(imgEl=>{
+imgEl.style.cursor = "move";
+imgEl.addEventListener("pointerdown", (e)=>{
+dragging = imgEl.dataset.imgId;
+imgEl.setPointerCapture(e.pointerId);
+});
+});
+page.addEventListener("pointermove", (e)=>{
+if(!dragging) return;
+const rect = page.getBoundingClientRect();
+let xPct = ((e.clientX - rect.left) / rect.width) * 100;
+let yPct = ((e.clientY - rect.top) / rect.height) * 100;
+xPct = Math.max(0, Math.min(95, xPct));
+yPct = Math.max(0, Math.min(95, yPct));
+const imgData = state.printSettings.images.find(i=>i.id === dragging);
+if(imgData){
+imgData.xPct = Math.round(xPct*10)/10;
+imgData.yPct = Math.round(yPct*10)/10;
+const el = page.querySelector(`.print-image[data-img-id="${dragging}"]`);
+if(el){ el.style.left = imgData.xPct + "%"; el.style.top = imgData.yPct + "%"; }
+}
+});
+page.addEventListener("pointerup", ()=>{
+if(dragging) saveState();
+dragging = null;
 });
 }
 
@@ -1288,11 +1336,22 @@ const el = document.getElementById("view-print");
 const ps = state.printSettings;
 const day = getOrCreateDay(currentDate);
 
+const imageRows = ps.images.map((img,i)=>`
+<div class="image-row" data-img-index="${i}">
+<img class="image-thumb" src="${img.src}">
+<div class="image-row-controls">
+<label>大きさ <input type="range" class="js-img-size" min="4" max="60" step="1" value="${img.widthPct}"></label>
+<label>不透明度 <input type="range" class="js-img-opacity" min="5" max="100" step="5" value="${Math.round(img.opacity*100)}"></label>
+</div>
+<button type="button" class="btn danger js-img-remove">削除</button>
+</div>
+`).join("");
+
 el.innerHTML = `
 <div class="panel page-head">
 <p class="eyebrow">PRINT PREVIEW</p>
 <h2>印刷プレビュー</h2>
-<p class="sub">実際に印刷される見た目を確認しながら、文字の大きさや背景・ロゴ画像を調整できます。ここでの設定はすべての日の印刷に共通して使われます。</p>
+<p class="sub">実際に印刷される見た目を確認しながら、文字の大きさや画像の位置を調整できます。ここでの設定はすべての日の印刷に共通して使われます。画像はプレビュー内でドラッグして好きな場所に置けます。</p>
 <div class="seat-toolbar">
 <label class="date-field">プレビューする日付
 <input type="date" id="previewDatePicker" value="${currentDate}">
@@ -1318,31 +1377,17 @@ el.innerHTML = `
 <input type="range" id="rangeGradeSize" min="6" max="12" step="0.5" value="${ps.gradeSize}">
 </div>
 
-<h3 style="margin-top:18px;">背景・ロゴ画像</h3>
-<p class="sub" style="margin:0 0 8px;">画像をアップロード、またはこの画面の上でそのまま貼り付け（Ctrl+V / Cmd+V）してください。</p>
-<div class="btn-row">
-<input type="file" id="logoFile" accept="image/*" style="max-width:220px;">
-<button class="btn danger" id="btnRemoveLogo" ${ps.logoImage ? "" : "disabled"}>画像を削除</button>
+<h3 style="margin-top:18px;">画像（ロゴ・背景など）</h3>
+<p class="sub" style="margin:0 0 8px;">複数枚まで追加できます。アップロード、またはこの画面の上でそのまま貼り付け（Ctrl+V / Cmd+V）してください。プレビュー内の画像は、ドラッグして好きな場所に動かせます。</p>
+<div class="btn-row" style="margin-bottom:10px;">
+<input type="file" id="imageFile" accept="image/*" style="max-width:220px;">
 </div>
-${ps.logoImage ? `
-<div class="slider-row">
-<label>配置</label>
-<select id="logoModeSelect">
-<option value="corner-tr" ${ps.logoMode==='corner-tr'?'selected':''}>右上に小さく</option>
-<option value="corner-tl" ${ps.logoMode==='corner-tl'?'selected':''}>左上に小さく</option>
-<option value="watermark" ${ps.logoMode==='watermark'?'selected':''}>ページ全体に薄く</option>
-</select>
-</div>
-<div class="slider-row">
-<label>不透明度 <span id="valLogoOpacity">${Math.round(ps.logoOpacity*100)}</span>%</label>
-<input type="range" id="rangeLogoOpacity" min="5" max="100" step="5" value="${Math.round(ps.logoOpacity*100)}">
-</div>
-` : ""}
+<div class="image-list">${imageRows}</div>
 </div>
 
 <div class="print-preview-wrap">
 <div class="print-preview-page" id="previewPage">
-${logoHtml(true)}
+${imagesHtml()}
 <div class="page-head" style="margin-bottom:4mm;">
 <h2 style="font-size:16pt;margin:0;">${(()=>{ const d=new Date(currentDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WEEKDAY_LABELS[weekdayOf(currentDate)]}）`; })()}</h2>
 </div>
@@ -1354,13 +1399,13 @@ ${day.blocks.map((block,bi)=> blockHtml(block, bi)).join("")}
 `;
 
 applyPrintCssVars();
+bindImageDrag();
 
 document.getElementById("previewDatePicker").addEventListener("change", (e)=>{
 currentDate = e.target.value || todayStr();
 renderPrintPreviewView();
 });
 document.getElementById("btnPrintFromPreview").addEventListener("click", ()=> window.print());
-
 document.getElementById("rangeSubjectSize").addEventListener("input", (e)=>{
 ps.subjectSize = Number(e.target.value);
 document.getElementById("valSubjectSize").textContent = ps.subjectSize;
@@ -1376,24 +1421,28 @@ ps.gradeSize = Number(e.target.value);
 document.getElementById("valGradeSize").textContent = ps.gradeSize;
 applyPrintCssVars(); saveState();
 });
-document.getElementById("logoFile").addEventListener("change", (e)=>{
-const file = e.target.files[0];
-if(file) handleLogoFile(file);
+document.getElementById("imageFile").addEventListener("change", (e)=>{
+Array.from(e.target.files || []).forEach(f=> addImageFile(f));
+e.target.value = "";
 });
-document.getElementById("btnRemoveLogo").addEventListener("click", ()=>{
-ps.logoImage = null;
+document.querySelectorAll(".image-row").forEach(row=>{
+const idx = Number(row.dataset.imgIndex);
+row.querySelector(".js-img-size").addEventListener("input", (e)=>{
+ps.images[idx].widthPct = Number(e.target.value);
+const imgEl = document.querySelector(`.print-image[data-img-id="${ps.images[idx].id}"]`);
+if(imgEl) imgEl.style.width = ps.images[idx].widthPct + "%";
+saveState();
+});
+row.querySelector(".js-img-opacity").addEventListener("input", (e)=>{
+ps.images[idx].opacity = Number(e.target.value)/100;
+const imgEl = document.querySelector(`.print-image[data-img-id="${ps.images[idx].id}"]`);
+if(imgEl) imgEl.style.opacity = ps.images[idx].opacity;
+saveState();
+});
+row.querySelector(".js-img-remove").addEventListener("click", ()=>{
+ps.images.splice(idx,1);
 saveState(); renderPrintPreviewView();
 });
-const modeSelect = document.getElementById("logoModeSelect");
-if(modeSelect) modeSelect.addEventListener("change", (e)=>{
-ps.logoMode = e.target.value;
-saveState(); renderPrintPreviewView();
-});
-const opacityRange = document.getElementById("rangeLogoOpacity");
-if(opacityRange) opacityRange.addEventListener("input", (e)=>{
-ps.logoOpacity = Number(e.target.value)/100;
-document.getElementById("valLogoOpacity").textContent = e.target.value;
-saveState(); renderPrintPreviewView();
 });
 }
 
