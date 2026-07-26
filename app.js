@@ -404,7 +404,7 @@ const seatRows = block.seats.map((seat,si)=> seatRowHtml(block, seat, si)).join(
 const groupRows = block.groupRows.map((g,gi)=> groupRowHtml(block, g, gi)).join("");
 
 return `
-<div class="lesson-block" data-block="${block.id}" data-time="${escapeHtml(block.time)}">
+<div class="lesson-block" data-block="${block.id}" data-time="${escapeHtml(/[0-9]/.test(block.time||'') ? block.time : '')}">
 <div class="block-head">
 <div class="block-head-left">
 <span class="block-index">枠${bi+1}</span>
