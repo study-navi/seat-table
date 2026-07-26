@@ -2173,3 +2173,85 @@ document.addEventListener("DOMContentLoaded", init);
   else inject();
   setInterval(inject, 1500);
 })();
+
+/* ==========================================================
+   生徒名簿: 生年月日順の並べ替えと、学年の自動計算
+   学年は4月1日時点の年齢基準。学年gは
+   (年度-6-g)年4月2日 〜 (年度-5-g)年4月1日 生まれ。
+   例) 2026年度の中3(g=9) = 2011/4/2〜2012/4/1
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-v1";
+  function state(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch(e){ return null; } }
+  function schoolYear(d){ return (d.getMonth() + 1 >= 4) ? d.getFullYear() : d.getFullYear() - 1; }
+  function gradeOf(iso, today){
+    var m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(iso || ""));
+    if (!m) return "";
+    var b = new Date(+m[1], +m[2] - 1, +m[3]);
+    var Y = schoolYear(today), g;
+    for (g = 1; g <= 12; g++){
+      var s = new Date(Y - 6 - g, 3, 2);
+      var e = new Date(Y - 5 - g, 3, 1);
+      if (b >= s && b <= e) break;
+    }
+    if (g > 12) return "";
+    if (g <= 6) return "小" + g;
+    if (g <= 9) return "中" + (g - 6);
+    return "高" + (g - 9);
+  }
+  window.__gradeFromBirthdate = gradeOf;
+  function mkBtn(text, fn){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "btn"; b.textContent = text;
+    b.addEventListener("click", fn);
+    return b;
+  }
+  function fillGrades(){
+    var s = state();
+    if (!s || !s.students) return;
+    var today = new Date(), upd = 0, noBd = 0, outOfRange = 0, same = 0, i;
+    for (i = 0; i < s.students.length; i++){
+      var st = s.students[i];
+      if (!st.birthdate){ noBd++; continue; }
+      var g = gradeOf(st.birthdate, today);
+      if (!g){ outOfRange++; continue; }
+      if (st.grade === g){ same++; continue; }
+      st.grade = g; upd++;
+    }
+    var msg = "学年を更新: " + upd + "件\n変更なし: " + same + "件\n生年月日なし: " + noBd + "件\n小1〜高3の範囲外: " + outOfRange + "件\n\n保存してページを再読み込みします。";
+    if (!window.confirm(msg)) return;
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
+    location.reload();
+  }
+  function sortByBirthdate(){
+    var s = state();
+    if (!s || !s.students) return;
+    var withBd = 0, i;
+    for (i = 0; i < s.students.length; i++) if (s.students[i].birthdate) withBd++;
+    var msg = "生年月日の古い順に並べ替えます。\n生年月日あり: " + withBd + "件\n生年月日なし: " + (s.students.length - withBd) + "件（末尾へ）\n\n保存してページを再読み込みします。";
+    if (!window.confirm(msg)) return;
+    s.students.sort(function(a, b){
+      var x = a.birthdate || "", y = b.birthdate || "";
+      if (!x && !y) return 0;
+      if (!x) return 1;
+      if (!y) return -1;
+      return x < y ? -1 : (x > y ? 1 : 0);
+    });
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
+    location.reload();
+  }
+  function inject(){
+    var box = document.getElementById("birthdate-bulk");
+    if (!box || box.querySelector("[data-bd-extra]")) return;
+    var row = document.createElement("div");
+    row.setAttribute("data-bd-extra", "1");
+    row.style.display = "flex"; row.style.gap = "8px";
+    row.style.flexWrap = "wrap"; row.style.marginTop = "10px";
+    row.appendChild(mkBtn("生年月日から学年を入れる", fillGrades));
+    row.appendChild(mkBtn("生年月日順に並べ替え", sortByBirthdate));
+    box.appendChild(row);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
+  else inject();
+  setInterval(inject, 1500);
+})();
