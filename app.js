@@ -780,6 +780,22 @@ eWeb（授業予定管理システム）の座席表ページで、ブックマ�
 "groups": [{"koma_id":47,"start":"14:50","end":"15:50","name":"中3社会-2026夏期集団","teacher_name":"堀部 晃平","students":["山本 紘士朗", ...]}]
 }
 */
+const EWEB_SUBJECT_ABBR = {"数":"数学","英":"英語","国":"国語","理":"理科","社":"社会","化":"化学","物":"物理","生":"生物","地":"地学","現":"現代文","古":"古文","漢":"漢文","公":"公民"};
+function parseEwebSubject(raw){
+const s = (raw||"").trim();
+const m = s.match(/^(講|通)[\(<【\[]([^\)>】\]]+)[\)>】\]]$/);
+if(!m) return {subject: s, status: "normal"};
+const kind = m[1], code = m[2];
+const subject = EWEB_SUBJECT_ABBR[code] || code;
+return {subject, status: kind === "講" ? "course" : "normal"};
+}
+function guessSubjectFromName(name){
+const s = name || "";
+for(const [abbr, full] of Object.entries(EWEB_SUBJECT_ABBR)){
+if(s.includes(full) || s.includes(abbr)) return full;
+}
+return "";
+}
 function buildDayFromEwebPayload(payload){
 const komaMap = {};
 (payload.komas||[]).forEach(k=> komaMap[k.id] = k);
@@ -820,14 +836,21 @@ const teacherName = normalizeName(teacherNameRaw);
 const list = byTeacher[teacherNameRaw].slice().sort((a,b)=> (a.pos||0)-(b.pos||0));
 const seat = emptySeat(block.seats.length+1);
 seat.teacher = teacherName;
-if(list[0]) seat.left = {student:normalizeName(list[0].student_name||""), subject:list[0].subject||"", grade:list[0].grade||"", status:"normal"};
-if(list[1]) seat.right = {student:normalizeName(list[1].student_name||""), subject:list[1].subject||"", grade:list[1].grade||"", status:"normal"};
+if(list[0]){
+const p0 = parseEwebSubject(list[0].subject);
+seat.left = {student:normalizeName(list[0].student_name||""), subject:p0.subject, grade:list[0].grade||"", status:p0.status};
+}
+if(list[1]){
+const p1 = parseEwebSubject(list[1].subject);
+seat.right = {student:normalizeName(list[1].student_name||""), subject:p1.subject, grade:list[1].grade||"", status:p1.status};
+}
 block.seats.push(seat);
 // 3人以上が同じ講師・同じコマの場合は、3人目以降を集団行として追加
 if(list.length>2){
+const p2 = parseEwebSubject(list[2].subject);
 block.groupRows.push({
 id: uid(), seatNumber: "", name: "", teacher: teacherName,
-subject: list[2].subject || "",
+subject: p2.subject,
 students: list.slice(2).map(x=>normalizeName(x.student_name)).filter(Boolean)
 });
 }
@@ -836,7 +859,7 @@ students: list.slice(2).map(x=>normalizeName(x.student_name)).filter(Boolean)
 (groupsByKoma[komaId]||[]).forEach(g=>{
 block.groupRows.push({
 id: uid(), seatNumber: "", name: g.name || "",
-teacher: normalizeName(g.teacher_name || ""), subject: "",
+teacher: normalizeName(g.teacher_name || ""), subject: guessSubjectFromName(g.name),
 students: (g.students||[]).map(n=>normalizeName(n)).filter(Boolean)
 });
 });
