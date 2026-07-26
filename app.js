@@ -55,6 +55,13 @@ data.teachers = Array.isArray(data.teachers) ? data.teachers : [];
 data.days = (data.days && typeof data.days === "object") ? data.days : {};
 data.weekdayPresets = (data.weekdayPresets && typeof data.weekdayPresets === "object") ? data.weekdayPresets : {};
 data.customSubjects = Array.isArray(data.customSubjects) ? data.customSubjects : [];
+data.printSettings = (data.printSettings && typeof data.printSettings === "object") ? data.printSettings : {};
+data.printSettings.subjectSize = data.printSettings.subjectSize || 15;
+data.printSettings.studentSize = data.printSettings.studentSize || 10.5;
+data.printSettings.gradeSize = data.printSettings.gradeSize || 7.5;
+data.printSettings.logoImage = data.printSettings.logoImage || null;
+data.printSettings.logoMode = data.printSettings.logoMode || "corner-tr";
+data.printSettings.logoOpacity = (typeof data.printSettings.logoOpacity === "number") ? data.printSettings.logoOpacity : 0.18;
 // normalize students
 data.students.forEach(s=>{
 if(!s.id) s.id = uid();
@@ -244,7 +251,7 @@ b.classList.toggle("active", b.dataset.tab === currentTab);
 });
 document.getElementById("studentCount").textContent = state.students.length;
 document.getElementById("teacherCount").textContent = state.teachers.length;
-["seat","students","teachers","settings"].forEach(name=>{
+["seat","students","teachers","print","settings"].forEach(name=>{
 document.getElementById("view-"+name).hidden = (name !== currentTab);
 });
 }
@@ -252,6 +259,7 @@ function renderCurrentView(){
 if(currentTab === "seat") renderSeatView();
 else if(currentTab === "students") renderStudentsView();
 else if(currentTab === "teachers") renderTeachersView();
+else if(currentTab === "print") renderPrintPreviewView();
 else if(currentTab === "settings") renderSettingsView();
 }
 
@@ -269,6 +277,7 @@ el.innerHTML = `
 <div class="panel page-head">
 <p class="eyebrow">LESSON SEATING</p>
 <h2>${dateLabel}</h2>
+${logoHtml(false)}
 <div class="seat-toolbar">
 <label class="date-field">日付
 <input type="date" id="datePicker" value="${currentDate}">
@@ -1187,6 +1196,185 @@ return s;
 }
 
 /* =========================================================
+PRINT PREVIEW
+========================================================= */
+function applyPrintCssVars(){
+const ps = state.printSettings;
+document.documentElement.style.setProperty("--print-subject-size", ps.subjectSize + "pt");
+document.documentElement.style.setProperty("--print-student-size", ps.studentSize + "pt");
+document.documentElement.style.setProperty("--print-grade-size", ps.gradeSize + "pt");
+}
+
+function logoHtml(forPreview){
+const ps = state.printSettings;
+if(!ps.logoImage) return "";
+if(ps.logoMode === "watermark"){
+return `<img class="print-watermark" src="${ps.logoImage}" style="opacity:${ps.logoOpacity}">`;
+}
+return `<img class="print-logo ${ps.logoMode}" src="${ps.logoImage}" style="opacity:${ps.logoOpacity}">`;
+}
+
+function resizeImageDataUrl(dataUrl, maxDim, cb){
+const img = new Image();
+img.onload = ()=>{
+let width = img.width, height = img.height;
+if(width > maxDim || height > maxDim){
+const scale = maxDim / Math.max(width, height);
+width = Math.round(width*scale); height = Math.round(height*scale);
+}
+const canvas = document.createElement("canvas");
+canvas.width = width; canvas.height = height;
+canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+cb(canvas.toDataURL("image/jpeg", 0.85));
+};
+img.src = dataUrl;
+}
+
+function handleLogoFile(file){
+if(!file || file.type.indexOf("image") === -1){ showToast("画像ファイルを選択してください", true); return; }
+const reader = new FileReader();
+reader.onload = ()=>{
+resizeImageDataUrl(reader.result, 900, (resized)=>{
+state.printSettings.logoImage = resized;
+saveState();
+renderPrintPreviewView();
+showToast("画像を設定しました");
+});
+};
+reader.readAsDataURL(file);
+}
+
+function initPastePreview(){
+document.addEventListener("paste", (e)=>{
+if(currentTab !== "print") return;
+const items = e.clipboardData && e.clipboardData.items;
+if(!items) return;
+for(const item of items){
+if(item.type.indexOf("image") !== -1){
+const file = item.getAsFile();
+handleLogoFile(file);
+e.preventDefault();
+break;
+}
+}
+});
+}
+
+function renderPrintPreviewView(){
+const el = document.getElementById("view-print");
+const ps = state.printSettings;
+const day = getOrCreateDay(currentDate);
+
+el.innerHTML = `
+<div class="panel page-head">
+<p class="eyebrow">PRINT PREVIEW</p>
+<h2>印刷プレビュー</h2>
+<p class="sub">実際に印刷される見た目を確認しながら、文字の大きさや背景・ロゴ画像を調整できます。ここでの設定はすべての日の印刷に共通して使われます。</p>
+<div class="seat-toolbar">
+<label class="date-field">プレビューする日付
+<input type="date" id="previewDatePicker" value="${currentDate}">
+</label>
+<div class="btn-row">
+<button class="btn primary" id="btnPrintFromPreview">この内容で印刷する</button>
+</div>
+</div>
+</div>
+
+<div class="panel print-settings-panel">
+<h3>文字の大きさ</h3>
+<div class="slider-row">
+<label>科目 <span id="valSubjectSize">${ps.subjectSize}</span>pt</label>
+<input type="range" id="rangeSubjectSize" min="10" max="24" step="0.5" value="${ps.subjectSize}">
+</div>
+<div class="slider-row">
+<label>生徒名 <span id="valStudentSize">${ps.studentSize}</span>pt</label>
+<input type="range" id="rangeStudentSize" min="7" max="16" step="0.5" value="${ps.studentSize}">
+</div>
+<div class="slider-row">
+<label>学年 <span id="valGradeSize">${ps.gradeSize}</span>pt</label>
+<input type="range" id="rangeGradeSize" min="6" max="12" step="0.5" value="${ps.gradeSize}">
+</div>
+
+<h3 style="margin-top:18px;">背景・ロゴ画像</h3>
+<p class="sub" style="margin:0 0 8px;">画像をアップロード、またはこの画面の上でそのまま貼り付け（Ctrl+V / Cmd+V）してください。</p>
+<div class="btn-row">
+<input type="file" id="logoFile" accept="image/*" style="max-width:220px;">
+<button class="btn danger" id="btnRemoveLogo" ${ps.logoImage ? "" : "disabled"}>画像を削除</button>
+</div>
+${ps.logoImage ? `
+<div class="slider-row">
+<label>配置</label>
+<select id="logoModeSelect">
+<option value="corner-tr" ${ps.logoMode==='corner-tr'?'selected':''}>右上に小さく</option>
+<option value="corner-tl" ${ps.logoMode==='corner-tl'?'selected':''}>左上に小さく</option>
+<option value="watermark" ${ps.logoMode==='watermark'?'selected':''}>ページ全体に薄く</option>
+</select>
+</div>
+<div class="slider-row">
+<label>不透明度 <span id="valLogoOpacity">${Math.round(ps.logoOpacity*100)}</span>%</label>
+<input type="range" id="rangeLogoOpacity" min="5" max="100" step="5" value="${Math.round(ps.logoOpacity*100)}">
+</div>
+` : ""}
+</div>
+
+<div class="print-preview-wrap">
+<div class="print-preview-page" id="previewPage">
+${logoHtml(true)}
+<div class="page-head" style="margin-bottom:4mm;">
+<h2 style="font-size:16pt;margin:0;">${(()=>{ const d=new Date(currentDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WEEKDAY_LABELS[weekdayOf(currentDate)]}）`; })()}</h2>
+</div>
+<div class="blocks preview-blocks" id="previewBlocks">
+${day.blocks.map((block,bi)=> blockHtml(block, bi)).join("")}
+</div>
+</div>
+</div>
+`;
+
+applyPrintCssVars();
+
+document.getElementById("previewDatePicker").addEventListener("change", (e)=>{
+currentDate = e.target.value || todayStr();
+renderPrintPreviewView();
+});
+document.getElementById("btnPrintFromPreview").addEventListener("click", ()=> window.print());
+
+document.getElementById("rangeSubjectSize").addEventListener("input", (e)=>{
+ps.subjectSize = Number(e.target.value);
+document.getElementById("valSubjectSize").textContent = ps.subjectSize;
+applyPrintCssVars(); saveState();
+});
+document.getElementById("rangeStudentSize").addEventListener("input", (e)=>{
+ps.studentSize = Number(e.target.value);
+document.getElementById("valStudentSize").textContent = ps.studentSize;
+applyPrintCssVars(); saveState();
+});
+document.getElementById("rangeGradeSize").addEventListener("input", (e)=>{
+ps.gradeSize = Number(e.target.value);
+document.getElementById("valGradeSize").textContent = ps.gradeSize;
+applyPrintCssVars(); saveState();
+});
+document.getElementById("logoFile").addEventListener("change", (e)=>{
+const file = e.target.files[0];
+if(file) handleLogoFile(file);
+});
+document.getElementById("btnRemoveLogo").addEventListener("click", ()=>{
+ps.logoImage = null;
+saveState(); renderPrintPreviewView();
+});
+const modeSelect = document.getElementById("logoModeSelect");
+if(modeSelect) modeSelect.addEventListener("change", (e)=>{
+ps.logoMode = e.target.value;
+saveState(); renderPrintPreviewView();
+});
+const opacityRange = document.getElementById("rangeLogoOpacity");
+if(opacityRange) opacityRange.addEventListener("input", (e)=>{
+ps.logoOpacity = Number(e.target.value)/100;
+document.getElementById("valLogoOpacity").textContent = e.target.value;
+saveState(); renderPrintPreviewView();
+});
+}
+
+/* =========================================================
 SETTINGS / BACKUP
 ========================================================= */
 const EWEB_BOOKMARKLET = `javascript:(async()=>{window.focus();const m=location.pathname.match(/schoolDay\\/(\\d+)/);const schoolId=m?m[1]:null;const dateInput=document.querySelector('input[type=date]');const date=dateInput?dateInput.value:null;if(!schoolId||!date){alert('学校IDまたは日付が取得できませんでした');return;}try{const res=await window.axios.post('/api/schedule/getSchoolSchedules/'+schoolId+'/'+date+'/'+date);const data=res.data;const komas=(data.date_komas||[]).flatMap(dk=>(dk.koma_set&&dk.koma_set.komas)||[]).map(k=>({id:k.id,name:k.name,start:k.start,end:k.end}));const items=(data.schedules||[]).map(s=>({koma_id:s.koma_id,teacher_name:s.teacher_name,student_name:s.student_name,grade:s.student_grade,subject:s.subject_name,pos:s.pos}));const groups=(data.scheduleGroups||[]).map(g=>({koma_id:g.koma_id,start:g.start,end:g.end,name:g.group_class?g.group_class.name:'',teacher_name:(g.join_teachers&&g.join_teachers[0]&&g.join_teachers[0].teacher&&g.join_teachers[0].teacher.user)?g.join_teachers[0].teacher.user.name:'',students:(g.join_students||[]).map(js=>js.student?js.student.name:'').filter(Boolean)}));const payload={date,komas,items,groups};const json=JSON.stringify(payload);let copied=false;try{await navigator.clipboard.writeText(json);copied=true;}catch(e){copied=false;}if(copied){alert(date+' の予定を座席表アプリ用にコピーしました（個別'+items.length+'件／集団'+groups.length+'件）。座席表アプリの「eWebから読み込む」ボタンに貼り付けてください。');}else{window.prompt('自動コピーに失敗しました。下のテキストを全選択（Ctrl+A/Cmd+A）してコピーし、座席表アプリの「eWebから読み込む」に貼り付けてください：',json);}}catch(err){alert('取得に失敗しました: '+(err.response?err.response.status:err.message));}})();`;
@@ -1260,7 +1448,9 @@ INIT
 ========================================================= */
 function init(){
 state = loadState();
+applyPrintCssVars();
 initTabs();
+initPastePreview();
 renderTabs();
 renderCurrentView();
 }

@@ -8,31 +8,33 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">
-    <div class="brand-mark">座</div>
-    <div class="brand-text">
-      <h1>座席表</h1>
-      <p>授業配置を、すばやく分かりやすく。</p>
-    </div>
-  </div>
-  <div class="save-indicator" id="saveIndicator">
-    <span class="dot"></span>
-    <span id="saveIndicatorText">この端末に自動保存</span>
-  </div>
+<div class="brand">
+<div class="brand-mark">座</div>
+<div class="brand-text">
+<h1>座席表</h1>
+<p>授業配置を、すばやく分かりやすく。</p>
+</div>
+</div>
+<div class="save-indicator" id="saveIndicator">
+<span class="dot"></span>
+<span id="saveIndicatorText">この端末に自動保存</span>
+</div>
 </header>
 
 <nav class="tabs" id="tabs">
-  <button class="tab-btn active" data-tab="seat">座席表</button>
-  <button class="tab-btn" data-tab="students">生徒名簿 <span class="count" id="studentCount">0</span></button>
-  <button class="tab-btn" data-tab="teachers">講師名簿 <span class="count" id="teacherCount">0</span></button>
-  <button class="tab-btn" data-tab="settings">設定・バックアップ</button>
+<button class="tab-btn active" data-tab="seat">座席表</button>
+<button class="tab-btn" data-tab="students">生徒名簿 <span class="count" id="studentCount">0</span></button>
+<button class="tab-btn" data-tab="teachers">講師名簿 <span class="count" id="teacherCount">0</span></button>
+<button class="tab-btn" data-tab="print">印刷プレビュー</button>
+<button class="tab-btn" data-tab="settings">設定・バックアップ</button>
 </nav>
 
 <main id="app">
-  <section id="view-seat" class="view"></section>
-  <section id="view-students" class="view" hidden></section>
-  <section id="view-teachers" class="view" hidden></section>
-  <section id="view-settings" class="view" hidden></section>
+<section id="view-seat" class="view"></section>
+<section id="view-students" class="view" hidden></section>
+<section id="view-teachers" class="view" hidden></section>
+<section id="view-print" class="view" hidden></section>
+<section id="view-settings" class="view" hidden></section>
 </main>
 
 <div id="toast" class="toast" hidden></div>

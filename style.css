@@ -14,6 +14,9 @@
 --radius: 8px;
 --gap: 12px;
 --row-alt: #f7f9fc;
+--print-subject-size: 15pt;
+--print-student-size: 10.5pt;
+--print-grade-size: 7.5pt;
 font-size: 15px;
 }
 
@@ -294,6 +297,51 @@ main{ padding: 10px; }
 .weekday-chip{ min-width:44px; padding:5px 6px; }
 }
 
+/* ---------- Print logo / watermark (hidden on screen, shown when printing) ---------- */
+.print-logo, .print-watermark{ display:none; }
+
+/* ---------- Print settings panel (in the Print Preview tab) ---------- */
+.print-settings-panel h3{ margin:0 0 10px; font-size:0.95em; }
+.slider-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.slider-row label{ min-width:120px; font-size:0.86em; color: var(--ink-soft); }
+.slider-row input[type=range]{ flex:1; min-width:160px; }
+.slider-row select{ padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+
+/* ---------- On-screen print preview (mimics the printed A3 landscape look) ---------- */
+.print-preview-wrap{ overflow-x:auto; padding:20px 0 40px; display:flex; justify-content:center; }
+.print-preview-page{
+position:relative; background:#fff; width:1400px; padding:24px 28px;
+border:1px solid var(--line); box-shadow:0 4px 20px rgba(20,26,38,0.08);
+}
+.print-preview-page .blocks{ display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
+.print-preview-page .lesson-block{ border:1.4px solid #55627a; border-radius:0; box-shadow:none; }
+.print-preview-page .block-head{ padding:4px 10px; background:#fff; border-bottom:1px solid #55627a; }
+.print-preview-page .block-actions{ display:none; }
+.print-preview-page .seat-move, .print-preview-page .row-order, .print-preview-page .status-buttons,
+.print-preview-page .js-remove-gstudent, .print-preview-page .add-student-chip{ display:none !important; }
+.print-preview-page .sheet-header, .print-preview-page .seat-row-wrap, .print-preview-page .group-row-wrap{
+grid-template-columns: 32px 90px 60px 40px minmax(0,1fr) 60px 40px minmax(0,1fr);
+}
+.print-preview-page .th{ font-size:9px; padding:3px; }
+.print-preview-page .cell{ min-height:34px; padding:3px 4px; }
+.print-preview-page .cell select, .print-preview-page .cell input{ border:none; background:transparent; padding:0; color:#000; }
+.print-preview-page .subject-select{ font-size: var(--print-subject-size) !important; font-weight:900; text-align:center; }
+.print-preview-page .student-select{ font-size: var(--print-student-size); font-weight:700; }
+.print-preview-page .grade-input{ font-size: var(--print-grade-size); text-align:center; }
+.print-preview-page .teacher-col select{ font-size:9pt; }
+.print-preview-page .print-logo{ display:block; position:absolute; top:14px; max-height:60px; z-index:2; }
+.print-preview-page .print-logo.corner-tr{ right:16px; }
+.print-preview-page .print-logo.corner-tl{ left:16px; }
+.print-preview-page .print-watermark{
+display:block; position:absolute; inset:0; width:100%; height:100%;
+object-fit:contain; pointer-events:none; z-index:0;
+}
+.print-preview-page .page-head, .print-preview-page .preview-blocks{ position:relative; z-index:1; }
+
+@media (max-width: 860px){
+.print-preview-page{ width:100%; padding:14px; }
+}
+
 /* ---------- Print ---------- */
 @media print{
 @page{ size: A3 landscape; margin: 8mm; }
@@ -320,9 +368,9 @@ main{ max-width:none; }
 .cell select, .cell input{ border:none; background:transparent; font-size:8pt; padding:0; color:#000; }
 .teacher-col select{ font-size:9pt; }
 /* subject is the #1 print priority: largest, boldest */
-.subject-select{ font-size:15pt !important; font-weight:900 !important; text-align:center; }
-.student-select{ font-size:10.5pt; font-weight:700; }
-.grade-input{ font-size:7.5pt; text-align:center; }
+.subject-select{ font-size: var(--print-subject-size) !important; font-weight:900 !important; text-align:center; }
+.student-select{ font-size: var(--print-student-size); font-weight:700; }
+.grade-input{ font-size: var(--print-grade-size); text-align:center; }
 .seat-num-cell input{ font-size:8pt; border:none; text-align:center; }
 .student-cell.status-course{ background:#e4ecff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .student-cell.status-transfer{ background:#e3f6e8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; border-left:1.4pt solid #2e8b57; }
@@ -330,4 +378,11 @@ main{ max-width:none; }
 .group-row{ background:#f6f2fd !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .chip{ font-size:8pt; padding:1px 5px; }
 .chip button{ display:none; }
+.print-logo{ display:block !important; position:fixed; top:5mm; max-height:18mm; z-index:2; }
+.print-logo.corner-tr{ right:5mm; }
+.print-logo.corner-tl{ left:5mm; }
+.print-watermark{
+display:block !important; position:fixed; top:0; left:0; width:100%; height:100%;
+object-fit:contain; z-index:-1;
+}
 }
