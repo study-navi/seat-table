@@ -2399,3 +2399,95 @@ document.addEventListener("DOMContentLoaded", init);
   else inject();
   setInterval(function(){ inject(); apply(); }, 1500);
 })();
+
+/* ==========================================================
+   「1枚に収める」
+   用紙の高さに内容が収まる倍率を探して当てる。
+   まず今の行の高さのまま倍率を下げ、下限(50%)でも無理なら
+   行の高さを段階的に詰めてから再探索する。
+   ========================================================== */
+(function(){
+  var SCALE_KEY = "seat-table-print-scale";
+  var ROW_KEY = "seat-table-print-row-h";
+  var MIN = 0.5;
+  function root(){ return document.documentElement; }
+  function page(){ return document.querySelector(".print-preview-page"); }
+  function content(){ var p = page(); return p ? p.querySelector(".blocks") : null; }
+  function setScale(v){ root().style.setProperty("--print-page-scale", String(v)); }
+  function setRow(mm){ root().style.setProperty("--print-row-h", mm > 0 ? (mm + "mm") : "0px"); }
+  function fits(){
+    var p = page(), c = content();
+    if (!p || !c) return false;
+    return c.getBoundingClientRect().height <= p.getBoundingClientRect().height + 1;
+  }
+  function curRow(){
+    var v = parseFloat(localStorage.getItem(ROW_KEY));
+    return isFinite(v) && v >= 0 ? v : 0;
+  }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  async function search(rowMm){
+    setRow(rowMm);
+    var s;
+    for (s = 100; s >= MIN * 100; s -= 5){
+      setScale(s / 100);
+      await sleep(60);
+      if (fits()) return s / 100;
+    }
+    return null;
+  }
+  async function run(btn){
+    var p = page();
+    if (!p){ window.alert("プレビューを表示してから実行してください。"); return; }
+    var oldScale = getComputedStyle(root()).getPropertyValue("--print-page-scale");
+    var oldRowMm = curRow();
+    btn.disabled = true;
+    var label = btn.textContent;
+    btn.textContent = "計算中…";
+    var rows = [oldRowMm, 12, 8, 4, 0], tried = {}, i, found = null, usedRow = oldRowMm;
+    for (i = 0; i < rows.length; i++){
+      var r = rows[i];
+      if (r > oldRowMm || tried[r]) continue;
+      tried[r] = 1;
+      found = await search(r);
+      if (found){ usedRow = r; break; }
+    }
+    btn.disabled = false;
+    btn.textContent = label;
+    if (!found){
+      setScale(parseFloat(oldScale) || 1);
+      setRow(oldRowMm);
+      window.alert("50%まで縮めても1枚に収まりませんでした。\n用紙をA3縦にするか、授業枠を分けて印刷してください。");
+      return;
+    }
+    var pct = Math.round(found * 100);
+    var msg = "全体の大きさ " + pct + "%";
+    if (usedRow !== oldRowMm) msg += "、行の高さ " + usedRow + "mm";
+    msg += " で1枚に収まります。\nこの設定を保存しますか？";
+    if (!window.confirm(msg)){
+      setScale(parseFloat(oldScale) || 1);
+      setRow(oldRowMm);
+      return;
+    }
+    try {
+      localStorage.setItem(SCALE_KEY, String(found));
+      localStorage.setItem(ROW_KEY, String(usedRow));
+    } catch(e){}
+    var sc = document.getElementById("printPageScale");
+    if (sc){ sc.value = String(pct); sc.dispatchEvent(new Event("input", { bubbles: true })); }
+    var rw = document.getElementById("printRowH");
+    if (rw){ rw.value = String(usedRow); rw.dispatchEvent(new Event("input", { bubbles: true })); }
+    setScale(found); setRow(usedRow);
+  }
+  function inject(){
+    var bar = document.querySelector(".print-panel-toggle");
+    if (!bar || bar.querySelector("#fitOnePage")) return;
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "btn"; b.id = "fitOnePage";
+    b.textContent = "1枚に収める";
+    b.addEventListener("click", function(){ run(b); });
+    bar.appendChild(b);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
+  else inject();
+  setInterval(inject, 1500);
+})();
