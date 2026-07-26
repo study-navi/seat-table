@@ -2093,7 +2093,7 @@ document.addEventListener("DOMContentLoaded", init);
     return y + "-" + pad(m) + "-" + pad(d);
   }
   function parseLine(ln){
-    var m = ln.match(/(\d{4})\s*[\/\-\.年]\s*(\d{1,2})\s*[\/\-\.月]\s*(\d{1,2})/);
+    var m = ln.match(/(\d{4})\s*[\/\-\.年]\s*(\d{1,2})\s*[\/\-\.月]\s*(\d{1,2})\s*[日]?/);
     if (!m) return { name: norm(ln), iso: "" };
     return { name: norm(ln.replace(m[0], " ")), iso: toISO(m[1], m[2], m[3]) };
   }
