@@ -339,8 +339,8 @@ grid-template-columns: 32px 90px 84px 40px minmax(0,1fr) 84px 40px minmax(0,1fr)
 .print-preview-page .cell select, .print-preview-page .cell input{ border:none; background:transparent; padding:0; color:#000; }
 .print-preview-page .subject-select{ font-size: var(--print-subject-size) !important; font-weight:900; text-align:center; overflow:visible; white-space:nowrap; }
 .print-preview-page .cell{ overflow:visible; }
-.print-preview-page .student-select{ font-size: var(--print-student-size); font-weight:700; }
-.print-preview-page .grade-input{ font-size: var(--print-grade-size); text-align:center; }
+.print-preview-page .student-select{ font-size: var(--print-student-size) !important; font-weight:700; }
+.print-preview-page .grade-input{ font-size: var(--print-grade-size) !important; text-align:center; }
 .print-preview-page .teacher-col select{ font-size:9pt; }
 .print-preview-page .print-image{ display:block; position:absolute; z-index:2; touch-action:none; }
 .print-preview-page .page-head, .print-preview-page .preview-blocks{ position:relative; z-index:1; }
@@ -376,8 +376,8 @@ main{ max-width:none; }
 .teacher-col select{ font-size:9.5pt; }
 /* subject is the #1 print priority: largest, boldest */
 .subject-select{ font-size: var(--print-subject-size) !important; font-weight:900 !important; text-align:center; }
-.student-select{ font-size: var(--print-student-size); font-weight:700; }
-.grade-input{ font-size: var(--print-grade-size); text-align:center; }
+.student-select{ font-size: var(--print-student-size) !important; font-weight:700; }
+.grade-input{ font-size: var(--print-grade-size) !important; text-align:center; }
 .seat-num-cell input{ font-size:8.5pt; border:none; text-align:center; }
 .student-cell.status-course{ background:#e4ecff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .student-cell.status-transfer{ background:#e3f6e8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; border-left:1.4pt solid #2e8b57; }
