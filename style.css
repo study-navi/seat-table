@@ -321,7 +321,7 @@ main{ padding: 10px; }
 /* ---------- On-screen print preview (mimics the printed A3 landscape look) ---------- */
 .print-preview-wrap{ overflow-x:auto; padding:20px 0 40px; display:flex; justify-content:center; }
 .print-preview-page{
-position:relative; background:#fff; flex:0 0 auto; align-self:flex-start; width: calc(404mm / var(--print-page-scale, 1)); zoom: var(--print-page-scale, 1); padding:0;
+position:relative; background:#fff; flex:0 0 auto; align-self:flex-start; width: calc(var(--paper-w) / var(--print-page-scale, 1)); zoom: var(--print-page-scale, 1); padding:0;
 border:1px solid var(--line); box-shadow:0 4px 20px rgba(20,26,38,0.08);
 }
 .print-preview-page .blocks{ display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
@@ -342,7 +342,12 @@ white-space:nowrap; text-align:center; cursor:text;
 /* プレビューを紙(A3横・余白8mm)と同じ縦横比で見せる */
 /* 用紙の高さはmmで明示する。aspect-ratio に頼ると印刷時の解決が変わり、
    画像の % 位置がプレビューとずれる */
-.print-preview-page{ height: calc(281mm / var(--print-page-scale, 1)); }
+/* 用紙の向きで幅と高さを入れ替える */
+:root{ --paper-w: 404mm; --paper-h: 281mm; }
+html[data-paper="portrait"]{ --paper-w: 281mm; --paper-h: 404mm; }
+.print-preview-page{ height: calc(var(--paper-h) / var(--print-page-scale, 1)); }
+/* 縦向きは2列だと窮屈なので1列にする */
+html[data-paper="portrait"] .print-preview-page .blocks{ grid-template-columns: 1fr; }
 /* 科目・学年の列幅は文字サイズに追従させる（2文字＋余白ぶん） */
 :root{
 --print-subj-col: calc(var(--print-subject-size, 15pt) * 2 + 3mm);
@@ -390,6 +395,7 @@ grid-template-columns: 32px 90px 84px 40px minmax(0,1fr) 84px 40px minmax(0,1fr)
 
 /* ---------- Print ---------- */
 @media print{
+/* size は用紙の向き切替でJSが上書きする（#paper-orientation-style） */
 @page{ size: A3 landscape; margin: 8mm; }
 html,body{ background:#fff; }
 body, main{ margin:0; padding:0; background:#fff; }
@@ -460,7 +466,8 @@ padding:0 !important; border:none !important; box-shadow:none !important;
 /* 印刷では画面用のフィット表示と縦横比指定を解除する */
 /* 縦横比は印刷でも維持する。解除するとページ枠が内容なりに縮み、
    画像の % 位置の基準が変わってプレビューとずれる */
-#view-print .print-preview-page{ transform: none !important; height: 281mm !important; }
+#view-print .print-preview-page{ transform: none !important; height: var(--paper-h) !important; }
+html[data-paper="portrait"] .blocks{ grid-template-columns: 1fr !important; }
 #view-print .print-preview-wrap{ height: auto !important; overflow: visible !important; }
 .seat-row-wrap, .group-row-wrap{ min-height: var(--print-row-h, 0px); }
 .group-time-auto{ font-size:7.5pt; color:#000; white-space:normal; line-height:1.15; }
