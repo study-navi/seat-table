@@ -2349,3 +2349,53 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(restore, 300); });
   else setTimeout(restore, 300);
 })();
+
+/* ==========================================================
+   用紙の向き（A3横 / A3縦）
+   枠数が多い日は横だと2枚になるため、縦(404mm)を選べるようにする。
+   @page は属性で切り替えられないので style を差し替える。
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-paper";
+  var SID = "paper-orientation-style";
+  function get(){ return localStorage.getItem(KEY) === "portrait" ? "portrait" : "landscape"; }
+  function apply(){
+    var v = get();
+    document.documentElement.setAttribute("data-paper", v);
+    var st = document.getElementById(SID);
+    if (!st){
+      st = document.createElement("style");
+      st.id = SID;
+      document.head.appendChild(st);
+    }
+    st.textContent = "@page{ size: A3 " + v + "; margin: 8mm; }";
+  }
+  function inject(){
+    var bar = document.querySelector(".print-panel-toggle");
+    if (!bar || bar.querySelector("#paperOrientation")) return;
+    var lab = document.createElement("label");
+    lab.style.fontSize = "13px";
+    lab.style.display = "inline-flex";
+    lab.style.alignItems = "center";
+    lab.style.gap = "6px";
+    lab.appendChild(document.createTextNode("用紙:"));
+    var sel = document.createElement("select");
+    sel.id = "paperOrientation";
+    [["landscape", "A3 横（2列）"], ["portrait", "A3 縦（1列・枠が多い日向け）"]].forEach(function(o){
+      var op = document.createElement("option");
+      op.value = o[0]; op.textContent = o[1];
+      sel.appendChild(op);
+    });
+    sel.value = get();
+    sel.addEventListener("change", function(){
+      try { localStorage.setItem(KEY, sel.value); } catch(e){}
+      apply();
+    });
+    lab.appendChild(sel);
+    bar.appendChild(lab);
+  }
+  apply();
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
+  else inject();
+  setInterval(function(){ inject(); apply(); }, 1500);
+})();
