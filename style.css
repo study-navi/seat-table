@@ -321,7 +321,7 @@ main{ padding: 10px; }
 /* ---------- On-screen print preview (mimics the printed A3 landscape look) ---------- */
 .print-preview-wrap{ overflow-x:auto; padding:20px 0 40px; display:flex; justify-content:center; }
 .print-preview-page{
-position:relative; background:#fff; width:1400px; padding:24px 28px;
+position:relative; background:#fff; width: calc(1400px / var(--print-page-scale, 1)); zoom: var(--print-page-scale, 1); padding:24px 28px;
 border:1px solid var(--line); box-shadow:0 4px 20px rgba(20,26,38,0.08);
 }
 .print-preview-page .blocks{ display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
@@ -410,4 +410,9 @@ padding:2mm 0;
 .print-image{ display:block !important; position:fixed; z-index:2; }
 #view-print > .panel.page-head, #view-print > .print-settings-panel{ display:none !important; }
 #view-print .print-preview-wrap{ padding:0; margin:0; }
+/* 紙幅いっぱいに使う。全体の大きさはスライダー(--print-page-scale)で調整 */
+#view-print .print-preview-page{
+width: calc(100% / var(--print-page-scale, 1)) !important;
+padding:0 !important; border:none !important; box-shadow:none !important;
+}
 }
