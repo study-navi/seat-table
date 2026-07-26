@@ -1526,3 +1526,59 @@ renderTabs();
 renderCurrentView();
 }
 document.addEventListener("DOMContentLoaded", init);
+
+/* ==========================================================
+   印刷: 全体の大きさスライダー
+   CSS変数 --print-page-scale を上下させて紙面の縮尺を変える。
+   値は localStorage("seat-table-print-scale") に単独で保存する
+   （本体の state を上書きしないため）。
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-print-scale";
+  var MIN = 60, MAX = 180;
+  function read(){
+    var v = parseFloat(localStorage.getItem(KEY));
+    if (!isFinite(v) || v < MIN/100 || v > MAX/100) return 1;
+    return v;
+  }
+  function apply(v){
+    document.documentElement.style.setProperty("--print-page-scale", String(v));
+  }
+  function text(v){ return "全体の大きさ " + Math.round(v*100) + "%"; }
+  function inject(){
+    var panel = document.querySelector(".print-settings-panel");
+    if (!panel || panel.querySelector("#printPageScale")) return;
+    var labels = Array.prototype.slice.call(panel.querySelectorAll("label"));
+    var anchor = null;
+    for (var i = 0; i < labels.length; i++){
+      if (labels[i].textContent.indexOf("学年") === 0){ anchor = labels[i].parentElement; break; }
+    }
+    var row = document.createElement("div");
+    if (anchor) row.className = anchor.className;
+    var lab = document.createElement("label");
+    var input = document.createElement("input");
+    input.type = "range";
+    input.id = "printPageScale";
+    input.min = String(MIN); input.max = String(MAX); input.step = "5";
+    var v = read();
+    input.value = String(Math.round(v*100));
+    lab.textContent = text(v);
+    input.addEventListener("input", function(){
+      var nv = parseInt(input.value, 10) / 100;
+      try { localStorage.setItem(KEY, String(nv)); } catch(e){}
+      apply(nv);
+      lab.textContent = text(nv);
+    });
+    row.appendChild(lab);
+    row.appendChild(input);
+    if (anchor && anchor.parentElement) anchor.parentElement.insertBefore(row, anchor.nextSibling);
+    else panel.appendChild(row);
+  }
+  apply(read());
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", inject);
+  } else {
+    inject();
+  }
+  setInterval(inject, 1500);
+})();
