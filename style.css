@@ -341,6 +341,11 @@ white-space:nowrap; text-align:center; cursor:text;
 }
 /* プレビューを紙(A3横・余白8mm)と同じ縦横比で見せる */
 .print-preview-page{ aspect-ratio: 404 / 281; }
+/* プレビューは見た目を印刷に寄せつつ、クリックして編集できる状態を保つ。
+   未選択のセレクトは文字だけ透明にして、当たり判定は残す。 */
+.print-preview-page .cell select[data-empty-sel="1"]{ color:transparent; }
+/* 折りたたみ用 */
+.print-panel-toggle{ margin:0 0 4px; }
 /* 行の高さ（縦の伸ばし）。0のときは自動 */
 .print-preview-page .seat-row-wrap,
 .print-preview-page .group-row-wrap{ min-height: var(--print-row-h, 0px); }
