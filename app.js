@@ -2031,3 +2031,47 @@ document.addEventListener("DOMContentLoaded", init);
   else inject();
   setInterval(function(){ inject(); apply(); }, 1500);
 })();
+
+/* ==========================================================
+   画像の大きさ・不透明度スライダーを即時プレビューに反映する
+   値は保存されるが再描画が走らないため、動かしても見た目が
+   変わらない。スライダー操作中に直接インラインstyleへ当てる。
+   ========================================================== */
+(function(){
+  function pairs(){
+    var panel = document.querySelector(".print-settings-panel");
+    if (!panel) return [];
+    var all = panel.querySelectorAll("input[type=range]"), noId = [], i;
+    for (i = 0; i < all.length; i++){ if (!all[i].id) noId.push(all[i]); }
+    var out = [];
+    for (i = 0; i + 1 < noId.length; i += 2) out.push([noId[i], noId[i + 1]]);
+    return out;
+  }
+  function images(){
+    return document.querySelectorAll(".print-preview-page img.print-image");
+  }
+  function live(){
+    var ps = pairs(), im = images(), i;
+    for (i = 0; i < ps.length && i < im.length; i++){
+      var w = parseFloat(ps[i][0].value);
+      var o = parseFloat(ps[i][1].value);
+      if (isFinite(w)) im[i].style.width = w + "%";
+      if (isFinite(o)) im[i].style.opacity = String(o / 100);
+    }
+  }
+  function bind(){
+    var ps = pairs(), i, j;
+    for (i = 0; i < ps.length; i++){
+      for (j = 0; j < 2; j++){
+        var el = ps[i][j];
+        if (!el || el.getAttribute("data-img-live") === "1") continue;
+        el.setAttribute("data-img-live", "1");
+        el.addEventListener("input", live);
+        el.addEventListener("change", live);
+      }
+    }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
+  else bind();
+  setInterval(bind, 1000);
+})();
