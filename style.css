@@ -344,6 +344,11 @@ white-space:nowrap; text-align:center; cursor:text;
 /* プレビューは見た目を印刷に寄せつつ、クリックして編集できる状態を保つ。
    未選択のセレクトは文字だけ透明にして、当たり判定は残す。 */
 .print-preview-page .cell select[data-empty-sel="1"]{ color:transparent; }
+/* 編集モード（「印刷と同じ見た目」をOFF）では画面で扱いやすい大きさに戻す */
+html[data-print-look="0"] .print-preview-page{
+width:1400px !important; aspect-ratio:auto !important; transform:none !important;
+}
+html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:auto !important; }
 /* 折りたたみ用 */
 .print-panel-toggle{ margin:0 0 4px; }
 /* 行の高さ（縦の伸ばし）。0のときは自動 */
