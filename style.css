@@ -413,7 +413,12 @@ padding:2mm 0;
 .th.blank2{ grid-column: span 2; }
 .th{ font-size:6.5pt; padding:0.8mm; background:#f4f4f4; border:0.5pt solid #bbb; }
 .cell{ min-height:8mm; padding:0.6mm 0.9mm; border:0.5pt solid #ccc; }
-.cell select, .cell input{ border:none; background:transparent; font-size:8pt; padding:0; color:#000; }
+.cell select, .cell input{ border:none; background:transparent; font-size:8pt; padding:0; color:#000;
+-webkit-appearance:none; appearance:none; }
+/* 空欄のplaceholder（—・学年 など）は紙に出さない */
+.cell input::placeholder{ color:transparent !important; }
+/* 未選択のセレクト（生徒を選択・— など）は空白にする */
+.cell select[data-empty-sel="1"]{ visibility:hidden !important; }
 .teacher-col select{ font-size:8.5pt; }
 /* subject is the #1 print priority: largest, boldest */
 .subject-select{ font-size: var(--print-subject-size) !important; font-weight:900 !important; text-align:center; }
