@@ -383,6 +383,8 @@ padding:2mm 0;
 }
 .block-head, .block-index{ display:none !important; }
 .sheet-wrap{ grid-column: 2; overflow: visible !important; }
+/* 画面用の min-width:860px を印刷では解除し、紙の幅に収める */
+.sheet{ min-width: 0 !important; width: 100% !important; }
 /* 時間が未入力の枠では縦書き時間バーを出さず、表を全幅で使う */
 .lesson-block[data-time=""]{ grid-template-columns: 1fr; }
 .lesson-block[data-time=""]::before{ display:none !important; }
