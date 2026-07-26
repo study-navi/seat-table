@@ -1602,7 +1602,11 @@ document.addEventListener("DOMContentLoaded", init);
   }
   function rowText(v){ return v > 0 ? ("行の高さ " + v + "mm") : "行の高さ 自動"; }
 
-  function readFit(){ return localStorage.getItem(FITKEY) !== "0"; }
+  function readFit(){
+    /* 編集モードでは画面フィットの縮小をかけない */
+    if (localStorage.getItem("seat-table-print-look") === "0") return false;
+    return localStorage.getItem(FITKEY) !== "0";
+  }
   function applyFit(){
     var wrap = q(".print-preview-wrap");
     var page = q(".print-preview-page");
@@ -1992,6 +1996,7 @@ document.addEventListener("DOMContentLoaded", init);
   function apply(){
     var st = document.getElementById("preview-mirror-print");
     if (st) st.disabled = !isOn();
+    document.documentElement.setAttribute("data-print-look", isOn() ? "1" : "0");
   }
   function inject(){
     var bar = document.querySelector(".print-panel-toggle");
