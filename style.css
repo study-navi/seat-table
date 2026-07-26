@@ -325,6 +325,14 @@ position:relative; background:#fff; width: calc(1400px / var(--print-page-scale,
 border:1px solid var(--line); box-shadow:0 4px 20px rgba(20,26,38,0.08);
 }
 .print-preview-page .blocks{ display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
+/* 集団行: 集団名から読み取った時間を科目列に表示する */
+.group-time-auto{
+display:flex; align-items:center; justify-content:center;
+width:100%; height:100%;
+font-size:11px; line-height:1.2;
+color: var(--muted, #64748b);
+white-space:nowrap; text-align:center; cursor:text;
+}
 /* プレビューを紙(A3横・余白8mm)と同じ縦横比で見せる */
 .print-preview-page{ aspect-ratio: 404 / 281; }
 /* 行の高さ（縦の伸ばし）。0のときは自動 */
@@ -424,4 +432,5 @@ padding:0 !important; border:none !important; box-shadow:none !important;
 #view-print .print-preview-page{ aspect-ratio: auto !important; transform: none !important; }
 #view-print .print-preview-wrap{ height: auto !important; overflow: visible !important; }
 .seat-row-wrap, .group-row-wrap{ min-height: var(--print-row-h, 0px); }
+.group-time-auto{ font-size:8pt; color:#000; }
 }
