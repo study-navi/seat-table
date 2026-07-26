@@ -2075,3 +2075,101 @@ document.addEventListener("DOMContentLoaded", init);
   else bind();
   setInterval(bind, 1000);
 })();
+
+/* ==========================================================
+   生徒名簿: 生年月日をまとめて貼り付け
+   1行1人。「氏名 生年月日」または生年月日のみ（名簿の並び順）。
+   氏名は空白（半角・全角）を無視して照合する。
+   ========================================================== */
+(function(){
+  var ID = "birthdate-bulk";
+  var KEY = "seat-table-v1";
+  function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function pad(n){ return (n < 10 ? "0" : "") + n; }
+  function toISO(y, m, d){
+    y = parseInt(y, 10); m = parseInt(m, 10); d = parseInt(d, 10);
+    if (!isFinite(y) || !isFinite(m) || !isFinite(d)) return "";
+    if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return "";
+    return y + "-" + pad(m) + "-" + pad(d);
+  }
+  function parseLine(ln){
+    var m = ln.match(/(\d{4})\s*[\/\-\.年]\s*(\d{1,2})\s*[\/\-\.月]\s*(\d{1,2})/);
+    if (!m) return { name: norm(ln), iso: "" };
+    return { name: norm(ln.replace(m[0], " ")), iso: toISO(m[1], m[2], m[3]) };
+  }
+  function entries(text){
+    var out = [], lines = String(text || "").split(/\r?\n/), i;
+    for (i = 0; i < lines.length; i++){ if (norm(lines[i])) out.push(parseLine(lines[i])); }
+    return out;
+  }
+  function build(text){
+    var s = null;
+    try { s = JSON.parse(localStorage.getItem(KEY)); } catch(e){ return null; }
+    if (!s || !s.students) return null;
+    var idx = {}, i;
+    for (i = 0; i < s.students.length; i++) idx[norm(s.students[i].name)] = i;
+    var es = entries(text), plan = [], unmatched = [], invalid = 0, order = 0;
+    for (i = 0; i < es.length; i++){
+      var e = es[i];
+      if (!e.iso){ invalid++; continue; }
+      if (e.name){
+        if (idx[e.name] === undefined){ unmatched.push(e.name); continue; }
+        plan.push({ i: idx[e.name], iso: e.iso });
+      } else {
+        if (order < s.students.length) plan.push({ i: order, iso: e.iso });
+        order++;
+      }
+    }
+    return { state: s, plan: plan, unmatched: unmatched, invalid: invalid, total: es.length };
+  }
+  function inject(){
+    var view = document.querySelector("#view-students");
+    if (!view || document.getElementById(ID)) return;
+    var box = document.createElement("div");
+    box.id = ID; box.className = "panel"; box.style.marginBottom = "12px";
+    var h = document.createElement("h3");
+    h.textContent = "生年月日をまとめて貼り付け";
+    var p = document.createElement("p");
+    p.style.fontSize = "13px";
+    p.textContent = "1行に1人。「氏名 生年月日」の形か、生年月日だけ（名簿の並び順に対応）。氏名は空白の有無を無視して照合します。日付は 2011/5/3・2011-5-3・2011年5月3日 のいずれでも可。";
+    var ta = document.createElement("textarea");
+    ta.rows = 6; ta.style.width = "100%";
+    ta.placeholder = "大利 幸之介\t2011/05/03\n藤井 章聡 2011-6-14";
+    var row = document.createElement("div");
+    row.style.display = "flex"; row.style.gap = "8px"; row.style.alignItems = "center";
+    row.style.marginTop = "8px"; row.style.flexWrap = "wrap";
+    var checkBtn = document.createElement("button");
+    checkBtn.type = "button"; checkBtn.className = "btn"; checkBtn.textContent = "照合する";
+    var applyBtn = document.createElement("button");
+    applyBtn.type = "button"; applyBtn.className = "btn"; applyBtn.textContent = "反映して再読み込み";
+    applyBtn.disabled = true;
+    var msg = document.createElement("div");
+    msg.style.fontSize = "13px"; msg.style.marginTop = "8px"; msg.style.whiteSpace = "pre-wrap";
+    checkBtn.addEventListener("click", function(){
+      var r = build(ta.value);
+      if (!r){ msg.textContent = "名簿データを読み込めませんでした。"; applyBtn.disabled = true; return; }
+      var out = [];
+      out.push("照合できた: " + r.plan.length + "件 / 入力 " + r.total + "行");
+      if (r.unmatched.length) out.push("名簿に見つからない氏名: " + r.unmatched.join("、"));
+      if (r.invalid) out.push("日付が読めない行: " + r.invalid + "件");
+      out.push("「反映して再読み込み」で保存し、ページを読み直します。");
+      msg.textContent = out.join("\n");
+      applyBtn.disabled = (r.plan.length === 0);
+    });
+    applyBtn.addEventListener("click", function(){
+      var r = build(ta.value);
+      if (!r || !r.plan.length) return;
+      var i;
+      for (i = 0; i < r.plan.length; i++) r.state.students[r.plan[i].i].birthdate = r.plan[i].iso;
+      try { localStorage.setItem(KEY, JSON.stringify(r.state)); } catch(e){ msg.textContent = "保存に失敗しました。"; return; }
+      location.reload();
+    });
+    row.appendChild(checkBtn); row.appendChild(applyBtn);
+    box.appendChild(h); box.appendChild(p); box.appendChild(ta);
+    box.appendChild(row); box.appendChild(msg);
+    view.insertBefore(box, view.firstChild);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
+  else inject();
+  setInterval(inject, 1500);
+})();
