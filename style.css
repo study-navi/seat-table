@@ -325,6 +325,11 @@ position:relative; background:#fff; width: calc(1400px / var(--print-page-scale,
 border:1px solid var(--line); box-shadow:0 4px 20px rgba(20,26,38,0.08);
 }
 .print-preview-page .blocks{ display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
+/* プレビューを紙(A3横・余白8mm)と同じ縦横比で見せる */
+.print-preview-page{ aspect-ratio: 404 / 281; }
+/* 行の高さ（縦の伸ばし）。0のときは自動 */
+.print-preview-page .seat-row-wrap,
+.print-preview-page .group-row-wrap{ min-height: var(--print-row-h, 0px); }
 .print-preview-page .lesson-block{ border:1.4px solid #55627a; border-radius:0; box-shadow:none; }
 .print-preview-page .block-head{ padding:4px 10px; background:#fff; border-bottom:1px solid #55627a; }
 .print-preview-page .block-actions{ display:none; }
@@ -415,4 +420,8 @@ padding:2mm 0;
 width: calc(100% / var(--print-page-scale, 1)) !important;
 padding:0 !important; border:none !important; box-shadow:none !important;
 }
+/* 印刷では画面用のフィット表示と縦横比指定を解除する */
+#view-print .print-preview-page{ aspect-ratio: auto !important; transform: none !important; }
+#view-print .print-preview-wrap{ height: auto !important; overflow: visible !important; }
+.seat-row-wrap, .group-row-wrap{ min-height: var(--print-row-h, 0px); }
 }
