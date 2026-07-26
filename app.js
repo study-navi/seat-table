@@ -2084,7 +2084,7 @@ document.addEventListener("DOMContentLoaded", init);
 (function(){
   var ID = "birthdate-bulk";
   var KEY = "seat-table-v1";
-  function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function norm(s){ return String(s || "").replace(/[\s\u3000,\uFF0C\u3001;\uFF1B\t]+/g, ""); }
   function pad(n){ return (n < 10 ? "0" : "") + n; }
   function toISO(y, m, d){
     y = parseInt(y, 10); m = parseInt(m, 10); d = parseInt(d, 10);
