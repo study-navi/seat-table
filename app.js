@@ -2381,7 +2381,7 @@ document.addEventListener("DOMContentLoaded", init);
     lab.appendChild(document.createTextNode("用紙:"));
     var sel = document.createElement("select");
     sel.id = "paperOrientation";
-    [["landscape", "A3 横（2列）"], ["portrait", "A3 縦（1列・枠が多い日向け）"]].forEach(function(o){
+    [["landscape", "A3 横（2列）"], ["portrait", "A3 縦（枠が多い日向け）"]].forEach(function(o){
       var op = document.createElement("option");
       op.value = o[0]; op.textContent = o[1];
       sel.appendChild(op);
@@ -2402,72 +2402,73 @@ document.addEventListener("DOMContentLoaded", init);
 
 /* ==========================================================
    「1枚に収める」
-   用紙の高さに内容が収まる倍率を探して当てる。
-   まず今の行の高さのまま倍率を下げ、下限(50%)でも無理なら
-   行の高さを段階的に詰めてから再探索する。
+   用紙の高さに収まる倍率を二分探索で求める。
+   1段階ごとにレイアウトが走るため、線形に刻むと非常に遅い。
+   まず現在の行の高さで探し、収まらなければ行を詰めて再探索する。
    ========================================================== */
 (function(){
   var SCALE_KEY = "seat-table-print-scale";
   var ROW_KEY = "seat-table-print-row-h";
   var MIN = 0.5;
+  var busy = false;
   function root(){ return document.documentElement; }
   function page(){ return document.querySelector(".print-preview-page"); }
   function content(){ var p = page(); return p ? p.querySelector(".blocks") : null; }
   function setScale(v){ root().style.setProperty("--print-page-scale", String(v)); }
   function setRow(mm){ root().style.setProperty("--print-row-h", mm > 0 ? (mm + "mm") : "0px"); }
-  function fits(){
+  function ratio(){
     var p = page(), c = content();
-    if (!p || !c) return false;
-    return c.getBoundingClientRect().height <= p.getBoundingClientRect().height + 1;
+    if (!p || !c) return 99;
+    var ph = p.getBoundingClientRect().height;
+    if (!ph) return 99;
+    return c.getBoundingClientRect().height / ph;
   }
   function curRow(){
     var v = parseFloat(localStorage.getItem(ROW_KEY));
     return isFinite(v) && v >= 0 ? v : 0;
   }
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  async function fitsAt(s){ setScale(s); await sleep(140); return ratio() <= 1.002; }
   async function search(rowMm){
     setRow(rowMm);
-    var s;
-    for (s = 100; s >= MIN * 100; s -= 5){
-      setScale(s / 100);
-      await sleep(60);
-      if (fits()) return s / 100;
+    await sleep(140);
+    if (await fitsAt(1)) return 1;
+    if (!(await fitsAt(MIN))) return null;
+    var lo = MIN, hi = 1, i, mid;
+    for (i = 0; i < 6; i++){
+      mid = (lo + hi) / 2;
+      if (await fitsAt(mid)) lo = mid; else hi = mid;
     }
-    return null;
+    return Math.floor(lo * 20) / 20;
   }
   async function run(btn){
-    var p = page();
-    if (!p){ window.alert("プレビューを表示してから実行してください。"); return; }
-    var oldScale = getComputedStyle(root()).getPropertyValue("--print-page-scale");
-    var oldRowMm = curRow();
-    btn.disabled = true;
+    if (busy) return;
+    if (!page()){ window.alert("プレビューを表示してから実行してください。"); return; }
+    busy = true;
+    var oldScale = parseFloat(getComputedStyle(root()).getPropertyValue("--print-page-scale")) || 1;
+    var oldRow = curRow();
     var label = btn.textContent;
-    btn.textContent = "計算中…";
-    var rows = [oldRowMm, 12, 8, 4, 0], tried = {}, i, found = null, usedRow = oldRowMm;
+    btn.disabled = true; btn.textContent = "計算中…";
+    var rows = [oldRow, 12, 8, 4, 0], tried = {}, found = null, usedRow = oldRow, i, r;
     for (i = 0; i < rows.length; i++){
-      var r = rows[i];
-      if (r > oldRowMm || tried[r]) continue;
+      r = rows[i];
+      if (r > oldRow || tried[r]) continue;
       tried[r] = 1;
       found = await search(r);
       if (found){ usedRow = r; break; }
     }
-    btn.disabled = false;
-    btn.textContent = label;
+    btn.disabled = false; btn.textContent = label;
+    busy = false;
     if (!found){
-      setScale(parseFloat(oldScale) || 1);
-      setRow(oldRowMm);
+      setScale(oldScale); setRow(oldRow);
       window.alert("50%まで縮めても1枚に収まりませんでした。\n用紙をA3縦にするか、授業枠を分けて印刷してください。");
       return;
     }
     var pct = Math.round(found * 100);
     var msg = "全体の大きさ " + pct + "%";
-    if (usedRow !== oldRowMm) msg += "、行の高さ " + usedRow + "mm";
+    if (usedRow !== oldRow) msg += "、行の高さ " + usedRow + "mm";
     msg += " で1枚に収まります。\nこの設定を保存しますか？";
-    if (!window.confirm(msg)){
-      setScale(parseFloat(oldScale) || 1);
-      setRow(oldRowMm);
-      return;
-    }
+    if (!window.confirm(msg)){ setScale(oldScale); setRow(oldRow); return; }
     try {
       localStorage.setItem(SCALE_KEY, String(found));
       localStorage.setItem(ROW_KEY, String(usedRow));
