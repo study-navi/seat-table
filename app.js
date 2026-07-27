@@ -2403,85 +2403,92 @@ document.addEventListener("DOMContentLoaded", init);
 
 /* ==========================================================
    「1枚に収める」
-   用紙の高さに収まる倍率を二分探索で求める。
-   1段階ごとにレイアウトが走るため、線形に刻むと非常に遅い。
-   まず現在の行の高さで探し、収まらなければ行を詰めて再探索する。
+   縦に収まらない主因は行の高さと文字サイズなので、
+   行を詰める → 文字を段階的に小さくする → 最後に倍率、の順で試す。
+   倍率(transform)は文字がぼやけるため最後の手段にする。
    ========================================================== */
 (function(){
   var SCALE_KEY = "seat-table-print-scale";
   var ROW_KEY = "seat-table-print-row-h";
-  var MIN = 0.5;
   var busy = false;
   function root(){ return document.documentElement; }
   function page(){ return document.querySelector(".print-preview-page"); }
   function content(){ var p = page(); return p ? p.querySelector(".blocks") : null; }
-  function setScale(v){ root().style.setProperty("--print-page-scale", String(v)); }
-  function setRow(mm){ root().style.setProperty("--print-row-h", mm > 0 ? (mm + "mm") : "0px"); }
-  function ratio(){
-    var p = page(), c = content();
-    if (!p || !c) return 99;
-    var ph = p.getBoundingClientRect().height;
-    if (!ph) return 99;
-    return c.getBoundingClientRect().height / ph;
+  function cssNum(name, def){
+    var v = parseFloat(getComputedStyle(root()).getPropertyValue(name));
+    return isFinite(v) ? v : def;
   }
-  function curRow(){
-    var v = parseFloat(localStorage.getItem(ROW_KEY));
-    return isFinite(v) && v >= 0 ? v : 0;
-  }
+  function setVar(n, v){ root().style.setProperty(n, v); }
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
-  async function fitsAt(s){ setScale(s); await sleep(60); return ratio() <= 1.002; }
-  async function search(rowMm){
-    setRow(rowMm);
-    await sleep(140);
-    if (await fitsAt(1)) return 1;
-    if (!(await fitsAt(MIN))) return null;
-    var lo = MIN, hi = 1, i, mid;
-    for (i = 0; i < 6; i++){
-      mid = (lo + hi) / 2;
-      if (await fitsAt(mid)) lo = mid; else hi = mid;
-    }
-    return Math.floor(lo * 20) / 20;
+  function fits(){
+    var p = page(), c = content();
+    if (!p || !c) return false;
+    return c.getBoundingClientRect().height <= p.getBoundingClientRect().height + 1;
+  }
+  async function tryState(rowMm, subjPt, stuPt, scale){
+    setVar("--print-row-h", rowMm > 0 ? (rowMm + "mm") : "0px");
+    setVar("--print-subject-size", subjPt + "pt");
+    setVar("--print-student-size", stuPt + "pt");
+    setVar("--print-page-scale", String(scale));
+    await sleep(90);
+    return fits();
   }
   async function run(btn){
     if (busy) return;
-    window.__suspendPreviewFit = true;
     if (!page()){ window.alert("プレビューを表示してから実行してください。"); return; }
     busy = true;
-    var oldScale = parseFloat(getComputedStyle(root()).getPropertyValue("--print-page-scale")) || 1;
-    var oldRow = curRow();
+    window.__suspendPreviewFit = true;
+    var oldRow = cssNum("--print-row-h", 0);
+    var oldSubj = cssNum("--print-subject-size", 15);
+    var oldStu = cssNum("--print-student-size", 10.5);
+    var oldScale = cssNum("--print-page-scale", 1);
     var label = btn.textContent;
     btn.disabled = true; btn.textContent = "計算中…";
-    var rows = [oldRow, 12, 8, 4, 0], tried = {}, found = null, usedRow = oldRow, i, r;
-    for (i = 0; i < rows.length; i++){
-      r = rows[i];
-      if (r > oldRow || tried[r]) continue;
-      tried[r] = 1;
-      found = await search(r);
-      if (found){ usedRow = r; break; }
+    /* 行の高さは mm、文字は pt。読みやすい順に候補を並べる */
+    var plan = [
+      [oldRow, oldSubj, oldStu, 1],
+      [0, oldSubj, oldStu, 1],
+      [0, 20, 15, 1], [0, 18, 14, 1], [0, 16, 13, 1],
+      [0, 14, 12, 1], [0, 12, 11, 1], [0, 11, 10, 1],
+      [0, 11, 10, 0.9], [0, 11, 10, 0.8], [0, 11, 10, 0.7]
+    ];
+    var hit = null, i;
+    for (i = 0; i < plan.length; i++){
+      if (await tryState(plan[i][0], plan[i][1], plan[i][2], plan[i][3])){ hit = plan[i]; break; }
     }
     btn.disabled = false; btn.textContent = label;
     busy = false;
     window.__suspendPreviewFit = false;
     window.dispatchEvent(new Event("resize"));
-    if (!found){
-      setScale(oldScale); setRow(oldRow);
-      window.alert("50%まで縮めても1枚に収まりませんでした。\n用紙をA3縦にするか、授業枠を分けて印刷してください。");
+    if (!hit){
+      setVar("--print-row-h", oldRow + "mm");
+      setVar("--print-subject-size", oldSubj + "pt");
+      setVar("--print-student-size", oldStu + "pt");
+      setVar("--print-page-scale", String(oldScale));
+      window.alert("この日は1枚に収まりませんでした。\n用紙をA3縦にするか、授業枠を分けて印刷してください。");
       return;
     }
-    var pct = Math.round(found * 100);
-    var msg = "全体の大きさ " + pct + "%";
-    if (usedRow !== oldRow) msg += "、行の高さ " + usedRow + "mm";
+    var msg = "行の高さ " + hit[0] + "mm、科目 " + hit[1] + "pt、生徒名 " + hit[2] + "pt";
+    if (hit[3] !== 1) msg += "、全体 " + Math.round(hit[3] * 100) + "%";
     msg += " で1枚に収まります。\nこの設定を保存しますか？";
-    if (!window.confirm(msg)){ setScale(oldScale); setRow(oldRow); return; }
+    if (!window.confirm(msg)){
+      setVar("--print-row-h", oldRow + "mm");
+      setVar("--print-subject-size", oldSubj + "pt");
+      setVar("--print-student-size", oldStu + "pt");
+      setVar("--print-page-scale", String(oldScale));
+      return;
+    }
     try {
-      localStorage.setItem(SCALE_KEY, String(found));
-      localStorage.setItem(ROW_KEY, String(usedRow));
+      localStorage.setItem(ROW_KEY, String(hit[0]));
+      localStorage.setItem(SCALE_KEY, String(hit[3]));
+      var s = JSON.parse(localStorage.getItem("seat-table-v1"));
+      if (s && s.printSettings){
+        s.printSettings.subjectSize = hit[1];
+        s.printSettings.studentSize = hit[2];
+        localStorage.setItem("seat-table-v1", JSON.stringify(s));
+      }
     } catch(e){}
-    var sc = document.getElementById("printPageScale");
-    if (sc){ sc.value = String(pct); sc.dispatchEvent(new Event("input", { bubbles: true })); }
-    var rw = document.getElementById("printRowH");
-    if (rw){ rw.value = String(usedRow); rw.dispatchEvent(new Event("input", { bubbles: true })); }
-    setScale(found); setRow(usedRow);
+    location.reload();
   }
   function inject(){
     var bar = document.querySelector(".print-panel-toggle");
