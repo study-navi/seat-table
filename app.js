@@ -1608,6 +1608,7 @@ document.addEventListener("DOMContentLoaded", init);
     return localStorage.getItem(FITKEY) !== "0";
   }
   function applyFit(){
+    if (window.__suspendPreviewFit) return;
     var wrap = q(".print-preview-wrap");
     var page = q(".print-preview-page");
     if (!wrap || !page) return;
@@ -2428,7 +2429,7 @@ document.addEventListener("DOMContentLoaded", init);
     return isFinite(v) && v >= 0 ? v : 0;
   }
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
-  async function fitsAt(s){ setScale(s); await sleep(140); return ratio() <= 1.002; }
+  async function fitsAt(s){ setScale(s); await sleep(60); return ratio() <= 1.002; }
   async function search(rowMm){
     setRow(rowMm);
     await sleep(140);
@@ -2443,6 +2444,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   async function run(btn){
     if (busy) return;
+    window.__suspendPreviewFit = true;
     if (!page()){ window.alert("プレビューを表示してから実行してください。"); return; }
     busy = true;
     var oldScale = parseFloat(getComputedStyle(root()).getPropertyValue("--print-page-scale")) || 1;
@@ -2459,6 +2461,8 @@ document.addEventListener("DOMContentLoaded", init);
     }
     btn.disabled = false; btn.textContent = label;
     busy = false;
+    window.__suspendPreviewFit = false;
+    window.dispatchEvent(new Event("resize"));
     if (!found){
       setScale(oldScale); setRow(oldRow);
       window.alert("50%まで縮めても1枚に収まりませんでした。\n用紙をA3縦にするか、授業枠を分けて印刷してください。");
