@@ -368,7 +368,8 @@ width: calc(100% / var(--print-page-scale, 1));
 /* 編集モードでも用紙の高さは保つ。height:auto にすると % で置いた
    画像の基準が変わり、印刷時に位置がずれるため。 */
 html[data-print-look="0"] .print-preview-page{
-width:1400px !important; transform:none !important;
+/* 枠幅を超えると横スクロールバーが出るため、はみ出さない幅にする */
+width:min(1400px, 100%) !important; transform:none !important;
 }
 html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:auto !important; }
 /* 折りたたみ用 */
