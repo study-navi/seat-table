@@ -321,7 +321,7 @@ main{ padding: 10px; }
 /* ---------- On-screen print preview (mimics the printed A3 landscape look) ---------- */
 .print-preview-wrap{ overflow-x:auto; padding:20px 0 40px; display:flex; justify-content:center; }
 .print-preview-page{
-position:relative; background:#fff; flex:0 0 auto; align-self:flex-start; width: calc(var(--paper-w) / var(--print-page-scale, 1)); zoom: var(--print-page-scale, 1); padding:0;
+position:relative; background:#fff; flex:0 0 auto; align-self:flex-start; width: var(--paper-w); padding:0;
 border:1px solid var(--line); box-shadow:0 4px 20px rgba(20,26,38,0.08);
 }
 .print-preview-page .blocks{ display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
@@ -345,7 +345,15 @@ white-space:nowrap; text-align:center; cursor:text;
 /* 用紙の向きで幅と高さを入れ替える */
 :root{ --paper-w: 404mm; --paper-h: 281mm; }
 html[data-paper="portrait"]{ --paper-w: 281mm; --paper-h: 404mm; }
-.print-preview-page{ height: calc(var(--paper-h) / var(--print-page-scale, 1)); }
+.print-preview-page{ height: var(--paper-h); }
+/* 縮尺は zoom ではなく transform で当てる。
+   zoom は印刷時に無視され、内容が用紙からはみ出して切れるため。
+   ページ自体は実寸のまま、中身だけを縮める。 */
+.print-preview-page .blocks{
+transform: scale(var(--print-page-scale, 1));
+transform-origin: top left;
+width: calc(100% / var(--print-page-scale, 1));
+}
 /* 縦向きでも2列を維持する（1列にすると縦に伸びて逆に収まらない） */
 /* 科目・学年の列幅は文字サイズに追従させる（2文字＋余白ぶん） */
 :root{
