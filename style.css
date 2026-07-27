@@ -365,8 +365,10 @@ width: calc(100% / var(--print-page-scale, 1));
    未選択のセレクトは文字だけ透明にして、当たり判定は残す。 */
 .print-preview-page .cell select[data-empty-sel="1"]{ color:transparent; }
 /* 編集モード（「印刷と同じ見た目」をOFF）では画面で扱いやすい大きさに戻す */
+/* 編集モードでも用紙の高さは保つ。height:auto にすると % で置いた
+   画像の基準が変わり、印刷時に位置がずれるため。 */
 html[data-print-look="0"] .print-preview-page{
-width:1400px !important; height:auto !important; transform:none !important;
+width:1400px !important; transform:none !important;
 }
 html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:auto !important; }
 /* 折りたたみ用 */
