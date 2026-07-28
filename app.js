@@ -2652,12 +2652,17 @@ document.addEventListener("DOMContentLoaded", init);
   }
   function hatchSrc(w, h){
     w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
-    var tile = Math.max(4, Math.min(w, h) / 6);
+    /* 線を太く・間隔を広くして、どこまで塗られているか一目で
+       分かるようにする。輪郭線も付けて範囲の境界を明示する。 */
+    var tile = Math.max(8, Math.min(w, h) / 3);
+    var sw = Math.max(1.5, tile / 5);
     return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
       '<defs><pattern id="p" width="' + tile + '" height="' + tile + '" patternUnits="userSpaceOnUse">' +
-      '<line x1="0" y1="' + tile + '" x2="' + tile + '" y2="0" stroke="#8a8a8a" stroke-width="1"/>' +
-      '</pattern></defs><rect width="' + w + '" height="' + h + '" fill="url(#p)"/></svg>');
+      '<line x1="0" y1="' + tile + '" x2="' + tile + '" y2="0" stroke="#666" stroke-width="' + sw + '"/>' +
+      '</pattern></defs>' +
+      '<rect x="0.5" y="0.5" width="' + (w - 1) + '" height="' + (h - 1) + '" fill="url(#p)" stroke="#999" stroke-width="1"/>' +
+      '</svg>');
   }
   /* サイズが数px揺れても毎回作り直さないよう許容差を設ける。
      厳密一致だけだと、サブピクセルの丸めで毎ティック再生成し続け、
