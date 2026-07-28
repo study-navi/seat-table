@@ -481,7 +481,7 @@ border:1.6pt solid #2e8b57 !important;
 position:relative;
 }
 .student-cell.status-transfer::after{
-content:"\u632f"; position:absolute; right:0.6mm; top:0;
+content:"振"; position:absolute; right:0.6mm; top:0;
 font-size:7pt; font-weight:700; color:#1b5e34; line-height:1.1;
 }
 /* 欠席の生徒は印刷では名前を出さない（席は空けて残す） */
