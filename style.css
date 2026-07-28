@@ -377,13 +377,19 @@ html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:
    通常の img として斜線を描く（設定に依存せず必ず印刷される）。 */
 .cell.solo-blocked select,
 .cell.solo-blocked input{ visibility:hidden; }
-/* 斜線は科目・学年・生徒名の3セルをまたぐ1枚の帯として描く。
-   セルごとに別々に描くと境界で継ぎ目ができ、範囲が狭く見える。
-   位置・大きさはJSがpx指定するので、行自体を基準にする。 */
-.seat-row-wrap{ position:relative; }
-.solo-hatch{
-position:absolute; top:0;
-pointer-events:none; display:block;
+/* 斜線はCSSのみで描く（JSでの座標計算はやめた）。
+   本当の印刷はブラウザ自身が @media print で別途描き直すため、
+   JSで測った座標をその瞬間に正確に反映させ続けるのは無理があった。
+   CSSの repeating-linear-gradient は要素自身のサイズに対して
+   常にブラウザが正しく計算するので、プレビューと実際の印刷で
+   ズレる余地がない。3セルの継ぎ目は完全には揃わないが、
+   位置が丸ごとズレるよりはるかに軽微。
+   ※ Chromeの印刷設定で「背景のグラフィック」を
+   オンにする必要がある。 */
+.cell.solo-blocked{
+background-image: repeating-linear-gradient(45deg,
+#666 0, #666 1.5px, transparent 1.5px, transparent 8px);
+-webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 /* 折りたたみ用 */
 .print-panel-toggle{ margin:0 0 4px; }
