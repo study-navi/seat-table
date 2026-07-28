@@ -474,6 +474,9 @@ padding:2mm 0;
 .seat-num-cell input{ font-size:8pt; border:none; text-align:center; }
 .student-cell.status-course{ background:#e4ecff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .student-cell.status-transfer{ background:#e3f6e8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; border-left:1.4pt solid #2e8b57; }
+/* 欠席の生徒は印刷では名前を出さない（席は空けて残す） */
+.student-cell.status-absent select,
+.student-cell.status-absent input{ visibility:hidden !important; }
 .student-cell.status-absent{ background:#fbe6e3 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; border-left:1.4pt dashed #c0392b; }
 .group-row{ background:#f6f2fd !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .chip{ font-size:8pt; padding:1.5px 5.5px; }
