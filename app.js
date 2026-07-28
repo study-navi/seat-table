@@ -2727,7 +2727,13 @@ document.addEventListener("DOMContentLoaded", init);
       setHatchGroup(row, [kids[2], kids[3], kids[4]], rightSolo && !nameOf(kids[4]), "left");
     }
   }
-  watch();
-  setInterval(function(){ watch(); paint(); }, 1500);
+  /* 初回実行で例外が起きても定期実行の登録自体は必ず行う。
+     そうしないと以後ずっと斜線の更新が止まったままになる。
+     また、実際の印刷（Cmd+P や「この内容で印刷する」）は
+     プレビューとは別に @media print で描き直されるため、
+     印刷が始まる直前に必ず座標を測り直す。 */
+  try { watch(); } catch(e){}
+  setInterval(function(){ try { watch(); paint(); } catch(e){} }, 1500);
+  window.addEventListener("beforeprint", function(){ try { paint(); } catch(e){} });
 })();
 
