@@ -1448,7 +1448,7 @@ saveState(); renderPrintPreviewView();
 /* =========================================================
 SETTINGS / BACKUP
 ========================================================= */
-const EWEB_BOOKMARKLET = `javascript:(async()=>{window.focus();const m=location.pathname.match(/schoolDay\\/(\\d+)/);const schoolId=m?m[1]:null;const dateInput=document.querySelector('input[type=date]');const date=dateInput?dateInput.value:null;if(!schoolId||!date){alert('学校IDまたは日付が取得できませんでした');return;}try{const res=await window.axios.post('/api/schedule/getSchoolSchedules/'+schoolId+'/'+date+'/'+date);const data=res.data;const komas=(data.date_komas||[]).flatMap(dk=>(dk.koma_set&&dk.koma_set.komas)||[]).map(k=>({id:k.id,name:k.name,start:k.start,end:k.end}));const items=(data.schedules||[]).map(s=>({koma_id:s.koma_id,teacher_name:s.teacher_name,student_name:s.student_name,grade:s.student_grade,subject:s.subject_name,pos:s.pos}));const groups=(data.scheduleGroups||[]).map(g=>({koma_id:g.koma_id,start:g.start,end:g.end,name:g.group_class?g.group_class.name:'',teacher_name:(g.join_teachers&&g.join_teachers[0]&&g.join_teachers[0].teacher&&g.join_teachers[0].teacher.user)?g.join_teachers[0].teacher.user.name:'',students:(g.join_students||[]).map(js=>js.student?js.student.name:'').filter(Boolean)}));const payload={date,komas,items,groups};const json=JSON.stringify(payload);let copied=false;try{await navigator.clipboard.writeText(json);copied=true;}catch(e){copied=false;}if(copied){alert(date+' の予定を座席表アプリ用にコピーしました（個別'+items.length+'件／集団'+groups.length+'件）。座席表アプリの「eWebから読み込む」ボタンに貼り付けてください。');}else{window.prompt('自動コピーに失敗しました。下のテキストを全選択（Ctrl+A/Cmd+A）してコピーし、座席表アプリの「eWebから読み込む」に貼り付けてください：',json);}}catch(err){alert('取得に失敗しました: '+(err.response?err.response.status:err.message));}})();`;
+const EWEB_BOOKMARKLET = `javascript:(async()=>{window.focus();const m=location.pathname.match(/schoolDay\\/(\\d+)/);const schoolId=m?m[1]:null;const dateInput=document.querySelector('input[type=date]');const date=dateInput?dateInput.value:null;if(!schoolId||!date){alert('学校IDまたは日付が取得できませんでした');return;}try{const res=await window.axios.post('/api/schedule/getSchoolSchedules/'+schoolId+'/'+date+'/'+date);const data=res.data;const komas=(data.date_komas||[]).flatMap(dk=>(dk.koma_set&&dk.koma_set.komas)||[]).map(k=>({id:k.id,name:k.name,start:k.start,end:k.end}));const items=(data.schedules||[]).map(s=>({koma_id:s.koma_id,teacher_name:s.teacher_name,student_name:s.student_name,grade:s.student_grade,subject:s.subject_name,pos:s.pos,flags:Object.keys(s).filter(function(k){return /\u632f\u66ff/.test(String(s[k]))}).map(function(k){return k+"="+String(s[k]).slice(0,40)})}));const groups=(data.scheduleGroups||[]).map(g=>({koma_id:g.koma_id,start:g.start,end:g.end,name:g.group_class?g.group_class.name:'',teacher_name:(g.join_teachers&&g.join_teachers[0]&&g.join_teachers[0].teacher&&g.join_teachers[0].teacher.user)?g.join_teachers[0].teacher.user.name:'',students:(g.join_students||[]).map(js=>js.student?js.student.name:'').filter(Boolean)}));const payload={date,komas,items,groups};const json=JSON.stringify(payload);let copied=false;try{await navigator.clipboard.writeText(json);copied=true;}catch(e){copied=false;}if(copied){alert(date+' の予定を座席表アプリ用にコピーしました（個別'+items.length+'件／集団'+groups.length+'件）。座席表アプリの「eWebから読み込む」ボタンに貼り付けてください。');}else{window.prompt('自動コピーに失敗しました。下のテキストを全選択（Ctrl+A/Cmd+A）してコピーし、座席表アプリの「eWebから読み込む」に貼り付けてください：',json);}}catch(err){alert('取得に失敗しました: '+(err.response?err.response.status:err.message));}})();`;
 
 function renderSettingsView(){
 const el = document.getElementById("view-settings");
@@ -2502,4 +2502,72 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
   else inject();
   setInterval(inject, 1500);
+})();
+
+/* ==========================================================
+   eWeb取込: 振替の自動判定
+   ブックマークレットが各予定の全項目を走査し、値に「振替」を含む
+   項目を flags として持ってくる。ここではそれを見て status を
+   substitute（振替）にする。項目名を事前に知る必要がない。
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-substitutes";
+  function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+  function absorb(text){
+    var p = null;
+    try { p = JSON.parse(text); } catch(e){ return false; }
+    if (!p || !p.date || !p.items) return false;
+    var map = {}, n = 0, i;
+    for (i = 0; i < p.items.length; i++){
+      var it = p.items[i];
+      if (!it || !it.flags || !it.flags.length) continue;
+      map[norm(it.student_name)] = 1;
+      n++;
+    }
+    var all = load();
+    all[p.date] = map;
+    try { localStorage.setItem(KEY, JSON.stringify(all)); } catch(e){}
+    return n > 0;
+  }
+  function watch(){
+    var tas = document.querySelectorAll("textarea"), i;
+    for (i = 0; i < tas.length; i++){
+      var ta = tas[i];
+      if (ta.getAttribute("data-sub-watch") === "1") continue;
+      ta.setAttribute("data-sub-watch", "1");
+      ta.addEventListener("input", function(ev){ absorb(ev.target.value); });
+      ta.addEventListener("paste", function(ev){
+        var t = ev.target;
+        setTimeout(function(){ absorb(t.value); }, 60);
+      });
+    }
+  }
+  function dateOf(el){
+    var v = el.closest ? el.closest(".view") : null;
+    var inp = v ? v.querySelector("input[type=\"date\"]") : null;
+    if (!inp) inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  function mark(){
+    var cells = document.querySelectorAll(".student-cell"), i;
+    for (i = 0; i < cells.length; i++){
+      var cell = cells[i];
+      var sel = cell.querySelector("select");
+      if (!sel || !sel.value) continue;
+      if (cell.getAttribute("data-sub-done") === "1") continue;
+      var m = load()[dateOf(cell)];
+      if (!m) continue;
+      var name = norm(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : "");
+      if (!m[name]) continue;
+      cell.setAttribute("data-sub-done", "1");
+      var btns = cell.parentElement ? cell.parentElement.querySelectorAll("button") : [];
+      var j;
+      for (j = 0; j < btns.length; j++){
+        if (btns[j].textContent.trim() === "\u632f\u66ff"){ btns[j].click(); break; }
+      }
+    }
+  }
+  watch();
+  setInterval(function(){ watch(); mark(); }, 1200);
 })();
