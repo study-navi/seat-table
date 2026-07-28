@@ -2572,10 +2572,17 @@ document.addEventListener("DOMContentLoaded", init);
       var name = norm(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : "");
       var kind = m[name];
       if (!kind) continue;
-      cell.setAttribute("data-sub-done", "1");
       var btns = cell.parentElement ? cell.parentElement.querySelectorAll("button") : [];
       var j;
       var want = (kind === "absent") ? "\u6b20\u5e2d" : "\u632f\u66ff";
+      var already = false;
+      for (j = 0; j < btns.length; j++){
+        if (btns[j].textContent.trim() === want && btns[j].classList.contains("active")){ already = true; break; }
+      }
+      /* 再描画で data-sub-done が消えても、既に選択済みなら押し直さない。
+         トグルボタンを無条件に押すとON/OFFを繰り返して点滅する。 */
+      if (already){ cell.setAttribute("data-sub-done", "1"); continue; }
+      cell.setAttribute("data-sub-done", "1");
       for (j = 0; j < btns.length; j++){
         if (btns[j].textContent.trim() === want){ btns[j].click(); break; }
       }
