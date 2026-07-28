@@ -473,7 +473,17 @@ padding:2mm 0;
 .grade-input{ font-size: var(--print-grade-size) !important; text-align:center; }
 .seat-num-cell input{ font-size:8pt; border:none; text-align:center; }
 .student-cell.status-course{ background:#e4ecff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-.student-cell.status-transfer{ background:#e3f6e8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; border-left:1.4pt solid #2e8b57; }
+/* 振替は背景色に頼らず、太い枠線と「振」の印で示す。
+   Chromeの「背景のグラフィック」がオフだと背景色は印刷されないため。 */
+.student-cell.status-transfer{
+background:#e3f6e8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact;
+border:1.6pt solid #2e8b57 !important;
+position:relative;
+}
+.student-cell.status-transfer::after{
+content:"\u632f"; position:absolute; right:0.6mm; top:0;
+font-size:7pt; font-weight:700; color:#1b5e34; line-height:1.1;
+}
 /* 欠席の生徒は印刷では名前を出さない（席は空けて残す） */
 .student-cell.status-absent select,
 .student-cell.status-absent input{ visibility:hidden !important; }
