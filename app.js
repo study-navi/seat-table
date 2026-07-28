@@ -2513,26 +2513,30 @@ document.addEventListener("DOMContentLoaded", init);
 (function(){
   var KEY = "seat-table-substitutes";
   function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function digits(s){ return String(s || "").replace(/[^0-9]/g, ""); }
   function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
   function absorb(text){
     var p = null;
     try { p = JSON.parse(text); } catch(e){ return false; }
     if (!p || !p.date || !p.items) return false;
-    var map = {}, n = 0, i;
+    var byId = {}, i;
+    if (p.komas){ for (i = 0; i < p.komas.length; i++) byId[p.komas[i].id] = p.komas[i]; }
+    /* 名前だけで照合すると、同じ生徒が同日に複数コマ入っている場合や
+       同姓同名の生徒がいる場合に、無関係なコマまで振替扱いになる。
+       コマの時間も合わせたキーにして、該当コマだけに限定する。 */
+    var map = {}, n = 0;
     for (i = 0; i < p.items.length; i++){
       var it = p.items[i];
       if (!it) continue;
-      /* eWebは state で状態を持つ。3=振替（reschedule_class_dateあり）、4=欠席。
-         comment に「振替」の文字は入らないため state を見る。 */
       var raw = it.raw || {};
       var st = raw.state;
       var kind = "";
       if (st === 3 || raw.reschedule_class_date) kind = "transfer";
-      /* state:4 の意味が未確定のため何も割り当てない。
-         eWebでは欠席の生徒は表示されないので欠席ではない。 */
       else if (it.flags && it.flags.length) kind = "transfer";
       if (!kind) continue;
-      map[norm(it.student_name)] = kind;
+      var k = byId[it.koma_id];
+      var timeKey = k ? (digits(k.start) + digits(k.end)) : "";
+      map[norm(it.student_name) + "@" + timeKey] = kind;
       n++;
     }
     var all = load();
@@ -2560,17 +2564,17 @@ document.addEventListener("DOMContentLoaded", init);
     return inp ? inp.value : "";
   }
   function mark(){
-    /* 座席表タブに限定する。印刷プレビュー側のセルを拾うと日付が食い違う */
-    var cells = document.querySelectorAll("#view-seat .student-cell"), i;
+    var cells = document.querySelectorAll(".student-cell"), i;
     for (i = 0; i < cells.length; i++){
       var cell = cells[i];
       var sel = cell.querySelector("select");
       if (!sel || !sel.value) continue;
-      if (cell.getAttribute("data-sub-done") === "1") continue;
+      var blk = cell.closest ? cell.closest(".lesson-block") : null;
+      var timeKey = blk ? digits(blk.getAttribute("data-time")) : "";
       var m = load()[dateOf(cell)];
       if (!m) continue;
       var name = norm(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : "");
-      var kind = m[name];
+      var kind = m[name + "@" + timeKey];
       if (!kind) continue;
       var btns = cell.parentElement ? cell.parentElement.querySelectorAll("button") : [];
       var j;
@@ -2579,8 +2583,6 @@ document.addEventListener("DOMContentLoaded", init);
       for (j = 0; j < btns.length; j++){
         if (btns[j].textContent.trim() === want && btns[j].classList.contains("active")){ already = true; break; }
       }
-      /* 再描画で data-sub-done が消えても、既に選択済みなら押し直さない。
-         トグルボタンを無条件に押すとON/OFFを繰り返して点滅する。 */
       if (already){ cell.setAttribute("data-sub-done", "1"); continue; }
       cell.setAttribute("data-sub-done", "1");
       for (j = 0; j < btns.length; j++){
