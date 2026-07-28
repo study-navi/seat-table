@@ -372,14 +372,16 @@ html[data-print-look="0"] .print-preview-page{
 width:min(1400px, 100%) !important; transform:none !important;
 }
 html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:auto !important; }
-/* 1対1（eWebで斜線）の相手側セルを斜線で塗る。画面・印刷とも同じ見た目 */
-.cell.solo-blocked{
-background-image: repeating-linear-gradient(45deg,
-rgba(0,0,0,0.16) 0, rgba(0,0,0,0.16) 2px,
-transparent 2px, transparent 7px);
-}
+/* 1対1（eWebで斜線）の相手側セル。
+   背景画像だとChromeの「背景のグラフィック」がオフのとき印刷されないため、
+   通常の img として斜線を描く（設定に依存せず必ず印刷される）。 */
+.cell.solo-blocked{ position:relative; }
 .cell.solo-blocked select,
 .cell.solo-blocked input{ visibility:hidden; }
+.solo-hatch{
+position:absolute; left:0; top:0; width:100%; height:100%;
+pointer-events:none; display:block;
+}
 /* 折りたたみ用 */
 .print-panel-toggle{ margin:0 0 4px; }
 /* 行の高さ（縦の伸ばし）。0のときは自動 */
