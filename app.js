@@ -2679,12 +2679,14 @@ document.addEventListener("DOMContentLoaded", init);
       return;
     }
     for (i = 0; i < cells.length; i++) cells[i].classList.add("solo-blocked");
-    var rowRect = row.getBoundingClientRect();
-    var first = cells[0].getBoundingClientRect();
-    var last = cells[cells.length - 1].getBoundingClientRect();
-    var left = Math.round(first.left - rowRect.left);
-    var width = Math.round(last.right - first.left);
-    var height = Math.round(rowRect.height);
+    /* getBoundingClientRect は「画面に合わせる」の縮小後の値を返すため、
+       それをそのまま px で指定すると縮小が二重にかかってずれる。
+       offsetLeft/offsetWidth はCSSの transform に影響されない
+       ローカル座標なので、こちらを使う（row が offsetParent である前提）。 */
+    var first = cells[0], last = cells[cells.length - 1];
+    var left = first.offsetLeft;
+    var width = (last.offsetLeft + last.offsetWidth) - first.offsetLeft;
+    var height = row.offsetHeight;
     if (!width || !height) return;
     var im = row.querySelector(".solo-hatch-" + side);
     var prev = row.getAttribute("data-hatch-" + side);
