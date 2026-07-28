@@ -2626,6 +2626,30 @@ document.addEventListener("DOMContentLoaded", init);
     var o = s.options[s.selectedIndex];
     return o ? norm(o.text) : "";
   }
+  /* 斜線は img(SVG) で描く。背景画像は Chrome の
+     「背景のグラフィック」がオフだと印刷されないため。 */
+  var SVG = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">' +
+    '<line x1="0" y1="8" x2="8" y2="0" stroke="#888" stroke-width="1.2"/>' +
+    '</svg>');
+  function setHatch(cell, on){
+    var had = cell.classList.contains("solo-blocked");
+    if (on === had && (!on || cell.querySelector(".solo-hatch"))) return;
+    cell.classList.toggle("solo-blocked", !!on);
+    var old = cell.querySelector(".solo-hatch");
+    if (!on){ if (old && old.parentNode) old.parentNode.removeChild(old); return; }
+    if (old) return;
+    var im = document.createElement("img");
+    im.className = "solo-hatch";
+    im.alt = "";
+    /* 8px角のタイルを敷き詰める見た目にするため、SVG側で繰り返す */
+    im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" preserveAspectRatio="none">' +
+      '<defs><pattern id="p" width="8" height="8" patternUnits="userSpaceOnUse">' +
+      '<line x1="0" y1="8" x2="8" y2="0" stroke="#8a8a8a" stroke-width="1.2"/>' +
+      '</pattern></defs><rect width="100" height="100" fill="url(#p)"/></svg>');
+    cell.appendChild(im);
+  }
   function paint(){
     var rows = document.querySelectorAll(".seat-row-wrap"), i, j;
     for (i = 0; i < rows.length; i++){
@@ -2639,8 +2663,8 @@ document.addEventListener("DOMContentLoaded", init);
       var leftGroup = [kids[2], kids[3], kids[4]];
       var rightGroup = [kids[5], kids[6], kids[7]];
       for (j = 0; j < 3; j++){
-        if (rightGroup[j]) rightGroup[j].classList.toggle("solo-blocked", leftSolo && !nameOf(kids[7]));
-        if (leftGroup[j]) leftGroup[j].classList.toggle("solo-blocked", rightSolo && !nameOf(kids[4]));
+        if (rightGroup[j]) setHatch(rightGroup[j], leftSolo && !nameOf(kids[7]));
+        if (leftGroup[j]) setHatch(leftGroup[j], rightSolo && !nameOf(kids[4]));
       }
     }
   }
