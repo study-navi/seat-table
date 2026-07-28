@@ -372,6 +372,14 @@ html[data-print-look="0"] .print-preview-page{
 width:min(1400px, 100%) !important; transform:none !important;
 }
 html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:auto !important; }
+/* 1対1（eWebで斜線）の相手側セルを斜線で塗る。画面・印刷とも同じ見た目 */
+.cell.solo-blocked{
+background-image: repeating-linear-gradient(45deg,
+rgba(0,0,0,0.16) 0, rgba(0,0,0,0.16) 2px,
+transparent 2px, transparent 7px);
+}
+.cell.solo-blocked select,
+.cell.solo-blocked input{ visibility:hidden; }
 /* 折りたたみ用 */
 .print-panel-toggle{ margin:0 0 4px; }
 /* 行の高さ（縦の伸ばし）。0のときは自動 */
