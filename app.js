@@ -2650,9 +2650,6 @@ document.addEventListener("DOMContentLoaded", init);
     var o = s.options[s.selectedIndex];
     return o ? norm(o.text) : "";
   }
-  /* 斜線は科目・学年・生徒名の3セルをまたぐ1枚の連続した帯として描く。
-     セルごとに個別のSVGを作ると継ぎ目ができ、範囲が狭く見えるため、
-     3セル分の位置と幅をまとめて測り、行を基準に1枚だけ配置する。 */
   function hatchSrc(w, h){
     w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
     var tile = Math.max(4, Math.min(w, h) / 6);
@@ -2662,6 +2659,11 @@ document.addEventListener("DOMContentLoaded", init);
       '<line x1="0" y1="' + tile + '" x2="' + tile + '" y2="0" stroke="#8a8a8a" stroke-width="1"/>' +
       '</pattern></defs><rect width="' + w + '" height="' + h + '" fill="url(#p)"/></svg>');
   }
+  /* サイズが数px揺れても毎回作り直さないよう許容差を設ける。
+     厳密一致だけだと、サブピクセルの丸めで毎ティック再生成し続け、
+     負荷が高くなり続ける原因になる。 */
+  var TOL = 2;
+  function near(a, b){ return Math.abs(a - b) <= TOL; }
   function setHatchGroup(row, cells, on, side){
     var i;
     if (!on){
@@ -2679,9 +2681,12 @@ document.addEventListener("DOMContentLoaded", init);
     var width = Math.round(last.right - first.left);
     var height = Math.round(rowRect.height);
     if (!width || !height) return;
-    var key = left + "x" + width + "x" + height;
-    if (row.getAttribute("data-hatch-" + side) === key) return;
     var im = row.querySelector(".solo-hatch-" + side);
+    var prev = row.getAttribute("data-hatch-" + side);
+    if (im && prev){
+      var parts = prev.split("x");
+      if (parts.length === 3 && near(left, +parts[0]) && near(width, +parts[1]) && near(height, +parts[2])) return;
+    }
     if (!im){
       im = document.createElement("img");
       im.className = "solo-hatch solo-hatch-" + side;
@@ -2692,10 +2697,18 @@ document.addEventListener("DOMContentLoaded", init);
     im.style.width = width + "px";
     im.style.height = height + "px";
     im.src = hatchSrc(width, height);
-    row.setAttribute("data-hatch-" + side, key);
+    row.setAttribute("data-hatch-" + side, left + "x" + width + "x" + height);
   }
   function paint(){
-    var rows = document.querySelectorAll(".seat-row-wrap"), i;
+    /* 非表示のタブ（display:none）にあるセルは測っても幅・高さが0になり
+       無駄な走査になるので、表示中のビューだけを対象にする。 */
+    var views = document.querySelectorAll(".view"), vi, rows = [];
+    for (vi = 0; vi < views.length; vi++){
+      if (getComputedStyle(views[vi]).display === "none") continue;
+      var found = views[vi].querySelectorAll(".seat-row-wrap");
+      for (var fi = 0; fi < found.length; fi++) rows.push(found[fi]);
+    }
+    var i;
     for (i = 0; i < rows.length; i++){
       var row = rows[i];
       var kids = row.children;
@@ -2708,6 +2721,6 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   watch();
-  setInterval(function(){ watch(); paint(); }, 1200);
+  setInterval(function(){ watch(); paint(); }, 1500);
 })();
 
