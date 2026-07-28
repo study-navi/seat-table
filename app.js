@@ -2560,7 +2560,8 @@ document.addEventListener("DOMContentLoaded", init);
     return inp ? inp.value : "";
   }
   function mark(){
-    var cells = document.querySelectorAll(".student-cell"), i;
+    /* 座席表タブに限定する。印刷プレビュー側のセルを拾うと日付が食い違う */
+    var cells = document.querySelectorAll("#view-seat .student-cell"), i;
     for (i = 0; i < cells.length; i++){
       var cell = cells[i];
       var sel = cell.querySelector("select");
