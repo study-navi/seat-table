@@ -2650,65 +2650,10 @@ document.addEventListener("DOMContentLoaded", init);
     var o = s.options[s.selectedIndex];
     return o ? norm(o.text) : "";
   }
-  function hatchSrc(w, h){
-    w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
-    /* 線を太く・間隔を広くして、どこまで塗られているか一目で
-       分かるようにする。輪郭線も付けて範囲の境界を明示する。 */
-    var tile = Math.max(8, Math.min(w, h) / 3);
-    var sw = Math.max(1.5, tile / 5);
-    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
-      '<defs><pattern id="p" width="' + tile + '" height="' + tile + '" patternUnits="userSpaceOnUse">' +
-      '<line x1="0" y1="' + tile + '" x2="' + tile + '" y2="0" stroke="#666" stroke-width="' + sw + '"/>' +
-      '</pattern></defs>' +
-      '<rect x="0.5" y="0.5" width="' + (w - 1) + '" height="' + (h - 1) + '" fill="url(#p)" stroke="#999" stroke-width="1"/>' +
-      '</svg>');
-  }
-  /* サイズが数px揺れても毎回作り直さないよう許容差を設ける。
-     厳密一致だけだと、サブピクセルの丸めで毎ティック再生成し続け、
-     負荷が高くなり続ける原因になる。 */
-  var TOL = 2;
-  function near(a, b){ return Math.abs(a - b) <= TOL; }
-  function setHatchGroup(row, cells, on, side){
-    var i;
-    if (!on){
-      for (i = 0; i < cells.length; i++) cells[i].classList.remove("solo-blocked");
-      var old = row.querySelector(".solo-hatch-" + side);
-      if (old && old.parentNode) old.parentNode.removeChild(old);
-      row.removeAttribute("data-hatch-" + side);
-      return;
-    }
-    for (i = 0; i < cells.length; i++) cells[i].classList.add("solo-blocked");
-    /* getBoundingClientRect は「画面に合わせる」の縮小後の値を返すため、
-       それをそのまま px で指定すると縮小が二重にかかってずれる。
-       offsetLeft/offsetWidth はCSSの transform に影響されない
-       ローカル座標なので、こちらを使う（row が offsetParent である前提）。 */
-    var first = cells[0], last = cells[cells.length - 1];
-    var left = first.offsetLeft;
-    var width = (last.offsetLeft + last.offsetWidth) - first.offsetLeft;
-    var height = row.offsetHeight;
-    if (!width || !height) return;
-    var im = row.querySelector(".solo-hatch-" + side);
-    var prev = row.getAttribute("data-hatch-" + side);
-    if (im && prev){
-      var parts = prev.split("x");
-      if (parts.length === 3 && near(left, +parts[0]) && near(width, +parts[1]) && near(height, +parts[2])) return;
-    }
-    if (!im){
-      im = document.createElement("img");
-      im.className = "solo-hatch solo-hatch-" + side;
-      im.alt = "";
-      row.appendChild(im);
-    }
-    im.style.left = left + "px";
-    im.style.width = width + "px";
-    im.style.height = height + "px";
-    im.src = hatchSrc(width, height);
-    row.setAttribute("data-hatch-" + side, left + "x" + width + "x" + height);
-  }
+  /* 斜線はCSS(.cell.solo-blocked の repeating-linear-gradient)だけで
+     描く。JSはクラスの付け外しだけを行い、座標やサイズの計算は
+     一切しない。これでプレビューと実際の印刷がズレる余地がなくなる。 */
   function paint(){
-    /* 非表示のタブ（display:none）にあるセルは測っても幅・高さが0になり
-       無駄な走査になるので、表示中のビューだけを対象にする。 */
     var views = document.querySelectorAll(".view"), vi, rows = [];
     for (vi = 0; vi < views.length; vi++){
       if (getComputedStyle(views[vi]).display === "none") continue;
@@ -2723,17 +2668,13 @@ document.addEventListener("DOMContentLoaded", init);
       var map = load()[dateOf(row)] || {};
       var leftSolo = !!map[nameOf(kids[4])];
       var rightSolo = !!map[nameOf(kids[7])];
-      setHatchGroup(row, [kids[5], kids[6], kids[7]], leftSolo && !nameOf(kids[7]), "right");
-      setHatchGroup(row, [kids[2], kids[3], kids[4]], rightSolo && !nameOf(kids[4]), "left");
+      var onRight = leftSolo && !nameOf(kids[7]);
+      var onLeft = rightSolo && !nameOf(kids[4]);
+      [kids[5], kids[6], kids[7]].forEach(function(c){ c.classList.toggle("solo-blocked", onRight); });
+      [kids[2], kids[3], kids[4]].forEach(function(c){ c.classList.toggle("solo-blocked", onLeft); });
     }
   }
-  /* 初回実行で例外が起きても定期実行の登録自体は必ず行う。
-     そうしないと以後ずっと斜線の更新が止まったままになる。
-     また、実際の印刷（Cmd+P や「この内容で印刷する」）は
-     プレビューとは別に @media print で描き直されるため、
-     印刷が始まる直前に必ず座標を測り直す。 */
-  try { watch(); } catch(e){}
+  try { watch(); paint(); } catch(e){}
   setInterval(function(){ try { watch(); paint(); } catch(e){} }, 1500);
-  window.addEventListener("beforeprint", function(){ try { paint(); } catch(e){} });
 })();
 
