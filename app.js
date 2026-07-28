@@ -2571,3 +2571,79 @@ document.addEventListener("DOMContentLoaded", init);
   watch();
   setInterval(function(){ watch(); mark(); }, 1200);
 })();
+
+/* ==========================================================
+   1対1（eWebで斜線）の反映
+   eWebは科目名の括弧で区別している。
+   1対1: 通<国> のように山括弧 / 1対2: 通(数) のように丸括弧。
+   取込payloadから山括弧の生徒を拾い、同じ席の相手側を斜線にする。
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-solo";
+  function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+  function isSolo(subj){ return /[<\uFF1C][^>\uFF1E]*[>\uFF1E]/.test(String(subj || "")); }
+  function absorb(text){
+    var p = null;
+    try { p = JSON.parse(text); } catch(e){ return false; }
+    if (!p || !p.date || !p.items) return false;
+    var map = {}, n = 0, i;
+    for (i = 0; i < p.items.length; i++){
+      var it = p.items[i];
+      if (!it) continue;
+      var subj = it.subject || (it.raw && it.raw.subject_name) || "";
+      if (!isSolo(subj)) continue;
+      map[norm(it.student_name)] = 1;
+      n++;
+    }
+    var all = load();
+    all[p.date] = map;
+    try { localStorage.setItem(KEY, JSON.stringify(all)); } catch(e){}
+    return n > 0;
+  }
+  function watch(){
+    var tas = document.querySelectorAll("textarea"), i;
+    for (i = 0; i < tas.length; i++){
+      var ta = tas[i];
+      if (ta.getAttribute("data-solo-watch") === "1") continue;
+      ta.setAttribute("data-solo-watch", "1");
+      ta.addEventListener("input", function(ev){ absorb(ev.target.value); });
+      ta.addEventListener("paste", function(ev){
+        var t = ev.target;
+        setTimeout(function(){ absorb(t.value); }, 60);
+      });
+    }
+  }
+  function dateOf(el){
+    var v = el.closest ? el.closest(".view") : null;
+    var inp = v ? v.querySelector("input[type=\"date\"]") : null;
+    if (!inp) inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  function nameOf(cell){
+    var s = cell.querySelector("select");
+    if (!s || !s.value) return "";
+    var o = s.options[s.selectedIndex];
+    return o ? norm(o.text) : "";
+  }
+  function paint(){
+    var rows = document.querySelectorAll(".seat-row-wrap"), i, j;
+    for (i = 0; i < rows.length; i++){
+      var row = rows[i];
+      var kids = row.children;
+      if (kids.length < 8) continue;
+      var map = load()[dateOf(row)] || {};
+      /* 左=科目2/学年3/生徒4、右=科目5/学年6/生徒7 */
+      var leftSolo = !!map[nameOf(kids[4])];
+      var rightSolo = !!map[nameOf(kids[7])];
+      var leftGroup = [kids[2], kids[3], kids[4]];
+      var rightGroup = [kids[5], kids[6], kids[7]];
+      for (j = 0; j < 3; j++){
+        if (rightGroup[j]) rightGroup[j].classList.toggle("solo-blocked", leftSolo && !nameOf(kids[7]));
+        if (leftGroup[j]) leftGroup[j].classList.toggle("solo-blocked", rightSolo && !nameOf(kids[4]));
+      }
+    }
+  }
+  watch();
+  setInterval(function(){ watch(); paint(); }, 1200);
+})();
