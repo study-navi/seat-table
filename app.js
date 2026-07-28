@@ -2528,7 +2528,8 @@ document.addEventListener("DOMContentLoaded", init);
       var st = raw.state;
       var kind = "";
       if (st === 3 || raw.reschedule_class_date) kind = "transfer";
-      else if (st === 4) kind = "absent";
+      /* state:4 の意味が未確定のため何も割り当てない。
+         eWebでは欠席の生徒は表示されないので欠席ではない。 */
       else if (it.flags && it.flags.length) kind = "transfer";
       if (!kind) continue;
       map[norm(it.student_name)] = kind;
