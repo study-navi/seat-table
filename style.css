@@ -375,11 +375,14 @@ html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:
 /* 1対1（eWebで斜線）の相手側セル。
    背景画像だとChromeの「背景のグラフィック」がオフのとき印刷されないため、
    通常の img として斜線を描く（設定に依存せず必ず印刷される）。 */
-.cell.solo-blocked{ position:relative; }
 .cell.solo-blocked select,
 .cell.solo-blocked input{ visibility:hidden; }
+/* 斜線は科目・学年・生徒名の3セルをまたぐ1枚の帯として描く。
+   セルごとに別々に描くと境界で継ぎ目ができ、範囲が狭く見える。
+   位置・大きさはJSがpx指定するので、行自体を基準にする。 */
+.seat-row-wrap{ position:relative; }
 .solo-hatch{
-position:absolute; left:0; top:0; width:100%; height:100%;
+position:absolute; top:0;
 pointer-events:none; display:block;
 }
 /* 折りたたみ用 */
