@@ -2576,7 +2576,9 @@ document.addEventListener("DOMContentLoaded", init);
       var name = norm(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : "");
       var kind = m[name + "@" + timeKey];
       if (!kind) continue;
-      var btns = cell.parentElement ? cell.parentElement.querySelectorAll("button") : [];
+      /* cell.parentElement は行全体で左右の生徒のボタンが並ぶため、
+         そこから探すと隣の生徒のボタンを押してしまう。cell自身の範囲に限定する。 */
+      var btns = cell.querySelectorAll("button");
       var j;
       var want = (kind === "absent") ? "\u6b20\u5e2d" : "\u632f\u66ff";
       var already = false;
