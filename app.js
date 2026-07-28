@@ -2521,8 +2521,17 @@ document.addEventListener("DOMContentLoaded", init);
     var map = {}, n = 0, i;
     for (i = 0; i < p.items.length; i++){
       var it = p.items[i];
-      if (!it || !it.flags || !it.flags.length) continue;
-      map[norm(it.student_name)] = 1;
+      if (!it) continue;
+      /* eWebは state で状態を持つ。3=振替（reschedule_class_dateあり）、4=欠席。
+         comment に「振替」の文字は入らないため state を見る。 */
+      var raw = it.raw || {};
+      var st = raw.state;
+      var kind = "";
+      if (st === 3 || raw.reschedule_class_date) kind = "transfer";
+      else if (st === 4) kind = "absent";
+      else if (it.flags && it.flags.length) kind = "transfer";
+      if (!kind) continue;
+      map[norm(it.student_name)] = kind;
       n++;
     }
     var all = load();
@@ -2559,12 +2568,14 @@ document.addEventListener("DOMContentLoaded", init);
       var m = load()[dateOf(cell)];
       if (!m) continue;
       var name = norm(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : "");
-      if (!m[name]) continue;
+      var kind = m[name];
+      if (!kind) continue;
       cell.setAttribute("data-sub-done", "1");
       var btns = cell.parentElement ? cell.parentElement.querySelectorAll("button") : [];
       var j;
+      var want = (kind === "absent") ? "\u6b20\u5e2d" : "\u632f\u66ff";
       for (j = 0; j < btns.length; j++){
-        if (btns[j].textContent.trim() === "\u632f\u66ff"){ btns[j].click(); break; }
+        if (btns[j].textContent.trim() === want){ btns[j].click(); break; }
       }
     }
   }
