@@ -2650,29 +2650,44 @@ document.addEventListener("DOMContentLoaded", init);
     var o = s.options[s.selectedIndex];
     return o ? norm(o.text) : "";
   }
-  /* 斜線は img(SVG) で描く。背景画像は Chrome の
-     「背景のグラフィック」がオフだと印刷されないため。 */
-  var SVG = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">' +
-    '<line x1="0" y1="8" x2="8" y2="0" stroke="#888" stroke-width="1.2"/>' +
-    '</svg>');
+  /* 斜線はセルの実寸に合わせて描く。8pxタイルを非正方形のセルに
+     引き伸ばすと45度の線が歪んで模様のように見えるため、
+     SVGのviewBoxをセルの実際の縦横比に一致させて歪みを防ぐ。 */
+  function hatchSrc(w, h){
+    w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
+    var tile = Math.max(4, Math.min(w, h) / 6);
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+      '<defs><pattern id="p" width="' + tile + '" height="' + tile + '" patternUnits="userSpaceOnUse">' +
+      '<line x1="0" y1="' + tile + '" x2="' + tile + '" y2="0" stroke="#8a8a8a" stroke-width="1"/>' +
+      '</pattern></defs><rect width="' + w + '" height="' + h + '" fill="url(#p)"/></svg>');
+  }
   function setHatch(cell, on){
-    var had = cell.classList.contains("solo-blocked");
-    if (on === had && (!on || cell.querySelector(".solo-hatch"))) return;
-    cell.classList.toggle("solo-blocked", !!on);
-    var old = cell.querySelector(".solo-hatch");
-    if (!on){ if (old && old.parentNode) old.parentNode.removeChild(old); return; }
-    if (old) return;
-    var im = document.createElement("img");
-    im.className = "solo-hatch";
-    im.alt = "";
-    /* 8px角のタイルを敷き詰める見た目にするため、SVG側で繰り返す */
-    im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" preserveAspectRatio="none">' +
-      '<defs><pattern id="p" width="8" height="8" patternUnits="userSpaceOnUse">' +
-      '<line x1="0" y1="8" x2="8" y2="0" stroke="#8a8a8a" stroke-width="1.2"/>' +
-      '</pattern></defs><rect width="100" height="100" fill="url(#p)"/></svg>');
-    cell.appendChild(im);
+    if (!on){
+      cell.classList.remove("solo-blocked");
+      var old = cell.querySelector(".solo-hatch");
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+      cell.removeAttribute("data-hatch-w");
+      cell.removeAttribute("data-hatch-h");
+      return;
+    }
+    cell.classList.add("solo-blocked");
+    var r = cell.getBoundingClientRect();
+    var w = Math.round(r.width), h = Math.round(r.height);
+    if (!w || !h) return;
+    var lastW = parseInt(cell.getAttribute("data-hatch-w"), 10);
+    var lastH = parseInt(cell.getAttribute("data-hatch-h"), 10);
+    var im = cell.querySelector(".solo-hatch");
+    if (im && lastW === w && lastH === h) return;
+    if (!im){
+      im = document.createElement("img");
+      im.className = "solo-hatch";
+      im.alt = "";
+      cell.appendChild(im);
+    }
+    im.src = hatchSrc(w, h);
+    cell.setAttribute("data-hatch-w", String(w));
+    cell.setAttribute("data-hatch-h", String(h));
   }
   function paint(){
     var rows = document.querySelectorAll(".seat-row-wrap"), i, j;
@@ -2681,7 +2696,6 @@ document.addEventListener("DOMContentLoaded", init);
       var kids = row.children;
       if (kids.length < 8) continue;
       var map = load()[dateOf(row)] || {};
-      /* 左=科目2/学年3/生徒4、右=科目5/学年6/生徒7 */
       var leftSolo = !!map[nameOf(kids[4])];
       var rightSolo = !!map[nameOf(kids[7])];
       var leftGroup = [kids[2], kids[3], kids[4]];
@@ -2695,3 +2709,4 @@ document.addEventListener("DOMContentLoaded", init);
   watch();
   setInterval(function(){ watch(); paint(); }, 1200);
 })();
+
