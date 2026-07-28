@@ -2650,9 +2650,9 @@ document.addEventListener("DOMContentLoaded", init);
     var o = s.options[s.selectedIndex];
     return o ? norm(o.text) : "";
   }
-  /* 斜線はセルの実寸に合わせて描く。8pxタイルを非正方形のセルに
-     引き伸ばすと45度の線が歪んで模様のように見えるため、
-     SVGのviewBoxをセルの実際の縦横比に一致させて歪みを防ぐ。 */
+  /* 斜線は科目・学年・生徒名の3セルをまたぐ1枚の連続した帯として描く。
+     セルごとに個別のSVGを作ると継ぎ目ができ、範囲が狭く見えるため、
+     3セル分の位置と幅をまとめて測り、行を基準に1枚だけ配置する。 */
   function hatchSrc(w, h){
     w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
     var tile = Math.max(4, Math.min(w, h) / 6);
@@ -2662,35 +2662,40 @@ document.addEventListener("DOMContentLoaded", init);
       '<line x1="0" y1="' + tile + '" x2="' + tile + '" y2="0" stroke="#8a8a8a" stroke-width="1"/>' +
       '</pattern></defs><rect width="' + w + '" height="' + h + '" fill="url(#p)"/></svg>');
   }
-  function setHatch(cell, on){
+  function setHatchGroup(row, cells, on, side){
+    var i;
     if (!on){
-      cell.classList.remove("solo-blocked");
-      var old = cell.querySelector(".solo-hatch");
+      for (i = 0; i < cells.length; i++) cells[i].classList.remove("solo-blocked");
+      var old = row.querySelector(".solo-hatch-" + side);
       if (old && old.parentNode) old.parentNode.removeChild(old);
-      cell.removeAttribute("data-hatch-w");
-      cell.removeAttribute("data-hatch-h");
+      row.removeAttribute("data-hatch-" + side);
       return;
     }
-    cell.classList.add("solo-blocked");
-    var r = cell.getBoundingClientRect();
-    var w = Math.round(r.width), h = Math.round(r.height);
-    if (!w || !h) return;
-    var lastW = parseInt(cell.getAttribute("data-hatch-w"), 10);
-    var lastH = parseInt(cell.getAttribute("data-hatch-h"), 10);
-    var im = cell.querySelector(".solo-hatch");
-    if (im && lastW === w && lastH === h) return;
+    for (i = 0; i < cells.length; i++) cells[i].classList.add("solo-blocked");
+    var rowRect = row.getBoundingClientRect();
+    var first = cells[0].getBoundingClientRect();
+    var last = cells[cells.length - 1].getBoundingClientRect();
+    var left = Math.round(first.left - rowRect.left);
+    var width = Math.round(last.right - first.left);
+    var height = Math.round(rowRect.height);
+    if (!width || !height) return;
+    var key = left + "x" + width + "x" + height;
+    if (row.getAttribute("data-hatch-" + side) === key) return;
+    var im = row.querySelector(".solo-hatch-" + side);
     if (!im){
       im = document.createElement("img");
-      im.className = "solo-hatch";
+      im.className = "solo-hatch solo-hatch-" + side;
       im.alt = "";
-      cell.appendChild(im);
+      row.appendChild(im);
     }
-    im.src = hatchSrc(w, h);
-    cell.setAttribute("data-hatch-w", String(w));
-    cell.setAttribute("data-hatch-h", String(h));
+    im.style.left = left + "px";
+    im.style.width = width + "px";
+    im.style.height = height + "px";
+    im.src = hatchSrc(width, height);
+    row.setAttribute("data-hatch-" + side, key);
   }
   function paint(){
-    var rows = document.querySelectorAll(".seat-row-wrap"), i, j;
+    var rows = document.querySelectorAll(".seat-row-wrap"), i;
     for (i = 0; i < rows.length; i++){
       var row = rows[i];
       var kids = row.children;
@@ -2698,12 +2703,8 @@ document.addEventListener("DOMContentLoaded", init);
       var map = load()[dateOf(row)] || {};
       var leftSolo = !!map[nameOf(kids[4])];
       var rightSolo = !!map[nameOf(kids[7])];
-      var leftGroup = [kids[2], kids[3], kids[4]];
-      var rightGroup = [kids[5], kids[6], kids[7]];
-      for (j = 0; j < 3; j++){
-        if (rightGroup[j]) setHatch(rightGroup[j], leftSolo && !nameOf(kids[7]));
-        if (leftGroup[j]) setHatch(leftGroup[j], rightSolo && !nameOf(kids[4]));
-      }
+      setHatchGroup(row, [kids[5], kids[6], kids[7]], leftSolo && !nameOf(kids[7]), "right");
+      setHatchGroup(row, [kids[2], kids[3], kids[4]], rightSolo && !nameOf(kids[4]), "left");
     }
   }
   watch();
