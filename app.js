@@ -1580,7 +1580,7 @@ document.addEventListener("DOMContentLoaded", init);
   } else {
     inject();
   }
-  setInterval(inject, 1500);
+  setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
 /* ==========================================================
@@ -1701,7 +1701,7 @@ document.addEventListener("DOMContentLoaded", init);
   function boot(){ inject(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
-  setInterval(boot, 1500);
+  setInterval(function(){ try { boot(); } catch(e){} }, 1500);
   window.addEventListener("resize", scheduleFit);
   document.addEventListener("click", scheduleFit, true);
   setTimeout(applyFit, 800);
@@ -1796,7 +1796,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", decorate);
   else decorate();
-  setInterval(decorate, 1000);
+  setInterval(function(){ try { decorate(); } catch(e){} }, 1000);
 })();
 
 /* ==========================================================
@@ -1859,7 +1859,7 @@ document.addEventListener("DOMContentLoaded", init);
     return m[digits(blk.getAttribute("data-time"))] || "";
   };
   watch();
-  setInterval(watch, 1200);
+  setInterval(function(){ try { watch(); } catch(e){} }, 1200);
 })();
 
 /* ==========================================================
@@ -1941,7 +1941,7 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mark);
   else mark();
   document.addEventListener("change", function(){ setTimeout(mark, 0); }, true);
-  setInterval(mark, 800);
+  setInterval(function(){ try { mark(); } catch(e){} }, 800);
 })();
 
 /* ==========================================================
@@ -1986,7 +1986,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
   else inject();
-  setInterval(inject, 1500);
+  setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
 /* ==========================================================
@@ -2030,7 +2030,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
   else inject();
-  setInterval(function(){ inject(); apply(); }, 1500);
+  setInterval(function(){ try { inject(); apply(); } catch(e){} }, 1500);
 })();
 
 /* ==========================================================
@@ -2074,7 +2074,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
   else bind();
-  setInterval(bind, 1000);
+  setInterval(function(){ try { bind(); } catch(e){} }, 1000);
 })();
 
 /* ==========================================================
@@ -2172,7 +2172,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
   else inject();
-  setInterval(inject, 1500);
+  setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
 /* ==========================================================
@@ -2311,7 +2311,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
   else inject();
-  setInterval(inject, 1500);
+  setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
 /* ==========================================================
@@ -2398,7 +2398,7 @@ document.addEventListener("DOMContentLoaded", init);
   apply();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
   else inject();
-  setInterval(function(){ inject(); apply(); }, 1500);
+  setInterval(function(){ try { inject(); apply(); } catch(e){} }, 1500);
 })();
 
 /* ==========================================================
@@ -2501,7 +2501,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
   else inject();
-  setInterval(inject, 1500);
+  setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
 /* ==========================================================
@@ -2593,7 +2593,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   watch();
-  setInterval(function(){ watch(); mark(); }, 1200);
+  setInterval(function(){ try { watch(); mark(); } catch(e){} }, 1200);
 })();
 
 /* ==========================================================
