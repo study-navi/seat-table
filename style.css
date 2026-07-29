@@ -321,7 +321,7 @@ main{ padding: 10px; }
 /* ---------- On-screen print preview (mimics the printed A3 landscape look) ---------- */
 .print-preview-wrap{ overflow-x:auto; padding:20px 0 40px; display:flex; justify-content:center; }
 .print-preview-page{
-position:relative; background:#fff; flex:0 0 auto; align-self:flex-start; width: var(--paper-w); padding:0;
+position:relative; background:#fff; flex:0 0 auto; align-self:flex-start; width: var(--paper-w); padding:8mm;
 border:1px solid var(--line); box-shadow:0 4px 20px rgba(20,26,38,0.08);
 }
 .print-preview-page .blocks{ display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
@@ -426,7 +426,13 @@ grid-template-columns: 32px 90px 84px 40px minmax(0,1fr) 84px 40px minmax(0,1fr)
 /* ---------- Print ---------- */
 @media print{
 /* size は用紙の向き切替でJSが上書きする（#paper-orientation-style） */
-@page{ size: A3 landscape; margin: 8mm; }
+/* @page 自体の margin は使わない。ブラウザの印刷エンジンが
+   独自に余白を差し引くため、画面上の疑似レイアウトと食い違い、
+   実際の印刷でだけ内容が用紙からはみ出す原因になっていた。
+   余白は自分たちの padding として持たせ、404mm/281mm の中に含める。
+   画面プレビューと印刷の両方に同じ padding を適用し、
+   どちらでも使える幅を一致させる。 */
+@page{ size: A3 landscape; margin: 0; }
 html,body{ background:#fff; }
 body, main{ margin:0; padding:0; background:#fff; }
 .topbar, .tabs, .preset-panel, .legend, .seat-toolbar, .btn, .toast, .status-buttons, .remove-student, .seat-move, .row-order{
@@ -512,7 +518,7 @@ padding:0 !important; border:none !important; box-shadow:none !important;
 /* 印刷では画面用のフィット表示と縦横比指定を解除する */
 /* 縦横比は印刷でも維持する。解除するとページ枠が内容なりに縮み、
    画像の % 位置の基準が変わってプレビューとずれる */
-#view-print .print-preview-page{ transform: none !important; height: var(--paper-h) !important; }
+#view-print .print-preview-page{ transform: none !important; height: var(--paper-h) !important; border:none !important; box-shadow:none !important; }
 
 #view-print .print-preview-wrap{ height: auto !important; overflow: visible !important; }
 .seat-row-wrap, .group-row-wrap{ min-height: var(--print-row-h, 0px); }
