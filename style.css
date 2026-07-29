@@ -388,10 +388,12 @@ html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:
    オンにする必要がある。 */
 /* 間隔を広くして繰り返し回数を減らす。細かすぎる繰り返しパターンは
    一部のコピー機のRIP（印刷データ処理）で「展開中」のまま
-   止まってしまうことがあるため、負荷を下げる。 */
+   止まってしまうことがあるため、負荷を下げる。
+   色は薄いグレーだと白黒印刷モードや低画質設定で飛ばされることが
+   あるため、黒に近い濃さにして線も太くする。 */
 .cell.solo-blocked{
 background-image: repeating-linear-gradient(45deg,
-#666 0, #666 2px, transparent 2px, transparent 20px);
+#000 0, #000 3px, transparent 3px, transparent 20px);
 -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 /* 折りたたみ用 */
