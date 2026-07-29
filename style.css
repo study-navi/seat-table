@@ -513,7 +513,7 @@ font-size:7pt; font-weight:700; color:#1b5e34; line-height:1.1;
 /* 紙幅いっぱいに使う。全体の大きさはスライダー(--print-page-scale)で調整 */
 #view-print .print-preview-page{
 width: calc(100% / var(--print-page-scale, 1)) !important;
-padding:0 !important; border:none !important; box-shadow:none !important;
+padding:8mm !important; border:none !important; box-shadow:none !important;
 }
 /* 印刷では画面用のフィット表示と縦横比指定を解除する */
 /* 縦横比は印刷でも維持する。解除するとページ枠が内容なりに縮み、
