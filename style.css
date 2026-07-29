@@ -386,9 +386,12 @@ html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:
    位置が丸ごとズレるよりはるかに軽微。
    ※ Chromeの印刷設定で「背景のグラフィック」を
    オンにする必要がある。 */
+/* 間隔を広くして繰り返し回数を減らす。細かすぎる繰り返しパターンは
+   一部のコピー機のRIP（印刷データ処理）で「展開中」のまま
+   止まってしまうことがあるため、負荷を下げる。 */
 .cell.solo-blocked{
 background-image: repeating-linear-gradient(45deg,
-#666 0, #666 1.5px, transparent 1.5px, transparent 8px);
+#666 0, #666 2px, transparent 2px, transparent 20px);
 -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 /* 折りたたみ用 */
