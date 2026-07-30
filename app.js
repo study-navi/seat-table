@@ -1727,19 +1727,10 @@ document.addEventListener("DOMContentLoaded", init);
     var d = row.querySelector(".group-name-cell");
     return d ? d.textContent : "";
   }
-  function subjectCell(row){
-    var cs = row.children;
-    for (var i = 0; i < cs.length; i++){
-      var cl = " " + cs[i].className + " ";
-      if (cl.indexOf(" group-row ") >= 0
-        && cl.indexOf("group-count") < 0
-        && cl.indexOf("group-name") < 0
-        && cl.indexOf("group-students") < 0
-        && cl.indexOf("seat-num") < 0
-        && cl.indexOf("teacher-col") < 0) return cs[i];
-    }
-    return null;
-  }
+  /* 集団の時間は、科目列という狭い場所（1〜2文字ぶんしかない）には
+     入れない。11文字ある時間表記はどう折り返しても収まらないため、
+     常に集団名の右側（生徒名と同じ幅の広いスペース）に表示する。
+     科目が埋まっているかどうかは関係なく、この扱いで統一する。 */
   function clearInline(row){
     var s = row.querySelector(".group-time-inline");
     if (s && s.parentNode) s.parentNode.removeChild(s);
@@ -1755,43 +1746,13 @@ document.addEventListener("DOMContentLoaded", init);
     }
     if (s.textContent !== t) s.textContent = t;
   }
-  function clear(cell, input){
-    var t = cell.querySelector(".group-time-auto");
-    if (t && t.parentNode) t.parentNode.removeChild(t);
-    if (input) input.style.display = "";
-  }
   function decorate(){
     var rows = document.querySelectorAll(".group-row-wrap");
     for (var i = 0; i < rows.length; i++){
       var row = rows[i];
-      var cell = subjectCell(row);
-      if (!cell) continue;
-      var input = cell.querySelector("input");
-      if (cell.getAttribute("data-group-time-off") === "1"){ clear(cell, input); continue; }
-      var t = "";
-      if (typeof window.__seatGroupTime === "function") t = window.__seatGroupTime(row) || "";
-      if (!t) t = timeOf(nameOf(row));
-      var filled = input && input.value && input.value.trim() !== "";
-      if (!t){ clear(cell, input); clearInline(row); continue; }
-      if (filled){ clear(cell, input); showInline(row, t); continue; }
-      clearInline(row);
-      var tag = cell.querySelector(".group-time-auto");
-      if (!tag){
-        tag = document.createElement("span");
-        tag.className = "group-time-auto";
-        tag.title = "集団名から読み取った時間（クリックすると科目を入力できます）";
-        tag.addEventListener("click", function(ev){
-          var c = ev.currentTarget.parentNode;
-          if (!c) return;
-          c.setAttribute("data-group-time-off", "1");
-          var ip = c.querySelector("input");
-          if (ev.currentTarget.parentNode) ev.currentTarget.parentNode.removeChild(ev.currentTarget);
-          if (ip){ ip.style.display = ""; ip.focus(); }
-        });
-        cell.appendChild(tag);
-      }
-      if (tag.textContent !== t) tag.textContent = t;
-      if (input) input.style.display = "none";
+      var t = timeOf(nameOf(row));
+      if (!t){ clearInline(row); continue; }
+      showInline(row, t);
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", decorate);
