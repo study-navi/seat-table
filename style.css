@@ -334,7 +334,7 @@ flex:0 0 auto; font-size:11px; color: var(--muted, #64748b); white-space:nowrap;
 }
 .group-time-auto{
 display:flex; align-items:center; justify-content:center;
-width:100%; height:100%;
+width:100%; height:100%; min-width:0;
 font-size:11px; line-height:1.2;
 color: var(--muted, #64748b);
 white-space:nowrap; text-align:center; cursor:text;
@@ -531,6 +531,6 @@ padding:0 !important; border:none !important; box-shadow:none !important;
 
 #view-print .print-preview-wrap{ height: auto !important; overflow: visible !important; }
 .seat-row-wrap, .group-row-wrap{ min-height: var(--print-row-h, 0px); }
-.group-time-auto{ font-size:7.5pt; color:#000; white-space:normal; line-height:1.15; }
-.group-time-inline{ font-size:7.5pt; color:#000; }
+.group-time-auto{ font-size:7.5pt; color:#000; white-space:normal; line-height:1.15; min-width:0; overflow-wrap:anywhere; }
+.group-time-inline{ font-size:7.5pt; color:#000; white-space:normal; min-width:0; overflow-wrap:anywhere; }
 }
