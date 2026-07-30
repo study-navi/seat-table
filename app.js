@@ -1207,7 +1207,7 @@ added++;
 });
 saveState();
 closeModal();
-if(kind==="students") renderStudentsView(); else renderTeachersView();
+if(kind==="students") renderStudentsView(); else { try { renderTeachersView(); } catch(e){} }
 showToast(`${added}件を追加しました`);
 });
 });
