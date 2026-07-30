@@ -1700,7 +1700,7 @@ document.addEventListener("DOMContentLoaded", init);
   applyRow(readRow());
   function boot(){ inject(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else boot();
+  else { try { boot(); } catch(e){} }
   setInterval(function(){ try { boot(); } catch(e){} }, 1500);
   window.addEventListener("resize", scheduleFit);
   document.addEventListener("click", scheduleFit, true);
@@ -1795,7 +1795,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", decorate);
-  else decorate();
+  else { try { decorate(); } catch(e){} }
   setInterval(function(){ try { decorate(); } catch(e){} }, 1000);
 })();
 
@@ -1916,7 +1916,7 @@ document.addEventListener("DOMContentLoaded", init);
     document.head.appendChild(st);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
-  else build();
+  else { try { build(); } catch(e){} }
   setTimeout(build, 1500);
 })();
 
@@ -1939,7 +1939,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mark);
-  else mark();
+  else { try { mark(); } catch(e){} }
   document.addEventListener("change", function(){ setTimeout(mark, 0); }, true);
   setInterval(function(){ try { mark(); } catch(e){} }, 800);
 })();
@@ -1985,7 +1985,7 @@ document.addEventListener("DOMContentLoaded", init);
     apply(panel, isOpen());
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else inject();
+  else { try { inject(); } catch(e){} }
   setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
@@ -2029,7 +2029,7 @@ document.addEventListener("DOMContentLoaded", init);
     apply();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else inject();
+  else { try { inject(); } catch(e){} }
   setInterval(function(){ try { inject(); apply(); } catch(e){} }, 1500);
 })();
 
@@ -2073,7 +2073,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
-  else bind();
+  else { try { bind(); } catch(e){} }
   setInterval(function(){ try { bind(); } catch(e){} }, 1000);
 })();
 
@@ -2171,7 +2171,7 @@ document.addEventListener("DOMContentLoaded", init);
     view.insertBefore(box, view.firstChild);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else inject();
+  else { try { inject(); } catch(e){} }
   setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
@@ -2310,7 +2310,7 @@ document.addEventListener("DOMContentLoaded", init);
     box.appendChild(row);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else inject();
+  else { try { inject(); } catch(e){} }
   setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
@@ -2397,7 +2397,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   apply();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else inject();
+  else { try { inject(); } catch(e){} }
   setInterval(function(){ try { inject(); apply(); } catch(e){} }, 1500);
 })();
 
@@ -2549,7 +2549,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else inject();
+  else { try { inject(); } catch(e){} }
   setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
