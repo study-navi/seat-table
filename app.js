@@ -1207,7 +1207,7 @@ added++;
 });
 saveState();
 closeModal();
-if(kind==="students") renderStudentsView(); else { try { renderTeachersView(); } catch(e){} }
+if(kind==="students") renderStudentsView(); else renderTeachersView();
 showToast(`${added}件を追加しました`);
 });
 });
@@ -1700,7 +1700,7 @@ document.addEventListener("DOMContentLoaded", init);
   applyRow(readRow());
   function boot(){ inject(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else { try { boot(); } catch(e){} }
+  else boot();
   setInterval(function(){ try { boot(); } catch(e){} }, 1500);
   window.addEventListener("resize", scheduleFit);
   document.addEventListener("click", scheduleFit, true);
@@ -1727,10 +1727,19 @@ document.addEventListener("DOMContentLoaded", init);
     var d = row.querySelector(".group-name-cell");
     return d ? d.textContent : "";
   }
-  /* 集団の時間は、科目列という狭い場所（1〜2文字ぶんしかない）には
-     入れない。11文字ある時間表記はどう折り返しても収まらないため、
-     常に集団名の右側（生徒名と同じ幅の広いスペース）に表示する。
-     科目が埋まっているかどうかは関係なく、この扱いで統一する。 */
+  function subjectCell(row){
+    var cs = row.children;
+    for (var i = 0; i < cs.length; i++){
+      var cl = " " + cs[i].className + " ";
+      if (cl.indexOf(" group-row ") >= 0
+        && cl.indexOf("group-count") < 0
+        && cl.indexOf("group-name") < 0
+        && cl.indexOf("group-students") < 0
+        && cl.indexOf("seat-num") < 0
+        && cl.indexOf("teacher-col") < 0) return cs[i];
+    }
+    return null;
+  }
   function clearInline(row){
     var s = row.querySelector(".group-time-inline");
     if (s && s.parentNode) s.parentNode.removeChild(s);
@@ -1746,17 +1755,47 @@ document.addEventListener("DOMContentLoaded", init);
     }
     if (s.textContent !== t) s.textContent = t;
   }
+  function clear(cell, input){
+    var t = cell.querySelector(".group-time-auto");
+    if (t && t.parentNode) t.parentNode.removeChild(t);
+    if (input) input.style.display = "";
+  }
   function decorate(){
     var rows = document.querySelectorAll(".group-row-wrap");
     for (var i = 0; i < rows.length; i++){
       var row = rows[i];
-      var t = timeOf(nameOf(row));
-      if (!t){ clearInline(row); continue; }
-      showInline(row, t);
+      var cell = subjectCell(row);
+      if (!cell) continue;
+      var input = cell.querySelector("input");
+      if (cell.getAttribute("data-group-time-off") === "1"){ clear(cell, input); continue; }
+      var t = "";
+      if (typeof window.__seatGroupTime === "function") t = window.__seatGroupTime(row) || "";
+      if (!t) t = timeOf(nameOf(row));
+      var filled = input && input.value && input.value.trim() !== "";
+      if (!t){ clear(cell, input); clearInline(row); continue; }
+      if (filled){ clear(cell, input); showInline(row, t); continue; }
+      clearInline(row);
+      var tag = cell.querySelector(".group-time-auto");
+      if (!tag){
+        tag = document.createElement("span");
+        tag.className = "group-time-auto";
+        tag.title = "集団名から読み取った時間（クリックすると科目を入力できます）";
+        tag.addEventListener("click", function(ev){
+          var c = ev.currentTarget.parentNode;
+          if (!c) return;
+          c.setAttribute("data-group-time-off", "1");
+          var ip = c.querySelector("input");
+          if (ev.currentTarget.parentNode) ev.currentTarget.parentNode.removeChild(ev.currentTarget);
+          if (ip){ ip.style.display = ""; ip.focus(); }
+        });
+        cell.appendChild(tag);
+      }
+      if (tag.textContent !== t) tag.textContent = t;
+      if (input) input.style.display = "none";
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", decorate);
-  else { try { decorate(); } catch(e){} }
+  else decorate();
   setInterval(function(){ try { decorate(); } catch(e){} }, 1000);
 })();
 
@@ -1877,7 +1916,7 @@ document.addEventListener("DOMContentLoaded", init);
     document.head.appendChild(st);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
-  else { try { build(); } catch(e){} }
+  else build();
   setTimeout(build, 1500);
 })();
 
@@ -1900,7 +1939,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mark);
-  else { try { mark(); } catch(e){} }
+  else mark();
   document.addEventListener("change", function(){ setTimeout(mark, 0); }, true);
   setInterval(function(){ try { mark(); } catch(e){} }, 800);
 })();
@@ -1946,7 +1985,7 @@ document.addEventListener("DOMContentLoaded", init);
     apply(panel, isOpen());
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else { try { inject(); } catch(e){} }
+  else inject();
   setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
@@ -1990,7 +2029,7 @@ document.addEventListener("DOMContentLoaded", init);
     apply();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else { try { inject(); } catch(e){} }
+  else inject();
   setInterval(function(){ try { inject(); apply(); } catch(e){} }, 1500);
 })();
 
@@ -2034,7 +2073,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
-  else { try { bind(); } catch(e){} }
+  else bind();
   setInterval(function(){ try { bind(); } catch(e){} }, 1000);
 })();
 
@@ -2132,7 +2171,7 @@ document.addEventListener("DOMContentLoaded", init);
     view.insertBefore(box, view.firstChild);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else { try { inject(); } catch(e){} }
+  else inject();
   setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
@@ -2271,7 +2310,7 @@ document.addEventListener("DOMContentLoaded", init);
     box.appendChild(row);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else { try { inject(); } catch(e){} }
+  else inject();
   setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
@@ -2358,7 +2397,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   apply();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else { try { inject(); } catch(e){} }
+  else inject();
   setInterval(function(){ try { inject(); apply(); } catch(e){} }, 1500);
 })();
 
@@ -2510,7 +2549,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
-  else { try { inject(); } catch(e){} }
+  else inject();
   setInterval(function(){ try { inject(); } catch(e){} }, 1500);
 })();
 
@@ -2688,74 +2727,3 @@ document.addEventListener("DOMContentLoaded", init);
   setInterval(function(){ try { watch(); paint(); } catch(e){} }, 1500);
 })();
 
-/* ==========================================================
-   席番号の手入力を、同じ先生の他の枠（時間帯）にも反映する。
-   1つの枠で先生の席番号を変えたら、その日の他の授業でも
-   同じ先生には同じ番号を付けたい、という要望に対応。
-   先生名（前後の空白を無視して比較）が一致する行だけを対象にし、
-   保存データを直接書き換えたうえで、同時に表示されている
-   他の枠の入力欄も見た目をその場で更新する。
-   ========================================================== */
-(function(){
-  function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
-  function currentDate(){
-    var inp = document.querySelector("#view-seat input[type=\"date\"]");
-    return inp ? inp.value : "";
-  }
-  function teacherOfRow(row){
-    var sel = row.querySelector(".teacher-col select");
-    if (!sel || !sel.value) return "";
-    var o = sel.options[sel.selectedIndex];
-    return o ? norm(o.text) : "";
-  }
-  function applySync(inputEl){
-    var row = inputEl.closest(".seat-row-wrap");
-    if (!row) return;
-    var teacher = teacherOfRow(row);
-    if (!teacher) return;
-    var newNum = inputEl.value;
-    var date = currentDate();
-    if (!date) return;
-    var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
-    if (!raw || !raw.days || !raw.days[date]) return;
-    var day = raw.days[date];
-    var blocks = day.blocks || day;
-    var changed = false, i, j;
-    for (i = 0; i < blocks.length; i++){
-      var seats = blocks[i].seats || [];
-      for (j = 0; j < seats.length; j++){
-        if (norm(seats[j].teacher) === teacher && seats[j].seatNumber !== newNum){
-          seats[j].seatNumber = newNum;
-          changed = true;
-        }
-      }
-    }
-    if (changed){
-      try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){}
-    }
-    /* 同じ日の他の枠が同時に画面上に表示されている場合、
-       再読み込みしなくても見た目がその場で揃うようにする */
-    var rows = document.querySelectorAll("#view-seat .seat-row-wrap"), k;
-    for (k = 0; k < rows.length; k++){
-      var r2 = rows[k];
-      if (r2 === row) continue;
-      if (teacherOfRow(r2) !== teacher) continue;
-      var seatInp = r2.querySelector(".js-seat-num");
-      if (seatInp && seatInp.value !== newNum) seatInp.value = newNum;
-    }
-  }
-  function bind(){
-    var inputs = document.querySelectorAll(".js-seat-num"), i;
-    for (i = 0; i < inputs.length; i++){
-      var inp = inputs[i];
-      if (inp.getAttribute("data-sync-bound") === "1") continue;
-      inp.setAttribute("data-sync-bound", "1");
-      inp.addEventListener("change", function(ev){ applySync(ev.target); });
-      inp.addEventListener("blur", function(ev){ applySync(ev.target); });
-    }
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
-  else { try { bind(); } catch(e){} }
-  setInterval(function(){ try { bind(); } catch(e){} }, 1200);
-})();
