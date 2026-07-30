@@ -2688,3 +2688,74 @@ document.addEventListener("DOMContentLoaded", init);
   setInterval(function(){ try { watch(); paint(); } catch(e){} }, 1500);
 })();
 
+/* ==========================================================
+   席番号の手入力を、同じ先生の他の枠（時間帯）にも反映する。
+   1つの枠で先生の席番号を変えたら、その日の他の授業でも
+   同じ先生には同じ番号を付けたい、という要望に対応。
+   先生名（前後の空白を無視して比較）が一致する行だけを対象にし、
+   保存データを直接書き換えたうえで、同時に表示されている
+   他の枠の入力欄も見た目をその場で更新する。
+   ========================================================== */
+(function(){
+  function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function currentDate(){
+    var inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  function teacherOfRow(row){
+    var sel = row.querySelector(".teacher-col select");
+    if (!sel || !sel.value) return "";
+    var o = sel.options[sel.selectedIndex];
+    return o ? norm(o.text) : "";
+  }
+  function applySync(inputEl){
+    var row = inputEl.closest(".seat-row-wrap");
+    if (!row) return;
+    var teacher = teacherOfRow(row);
+    if (!teacher) return;
+    var newNum = inputEl.value;
+    var date = currentDate();
+    if (!date) return;
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    if (!raw || !raw.days || !raw.days[date]) return;
+    var day = raw.days[date];
+    var blocks = day.blocks || day;
+    var changed = false, i, j;
+    for (i = 0; i < blocks.length; i++){
+      var seats = blocks[i].seats || [];
+      for (j = 0; j < seats.length; j++){
+        if (norm(seats[j].teacher) === teacher && seats[j].seatNumber !== newNum){
+          seats[j].seatNumber = newNum;
+          changed = true;
+        }
+      }
+    }
+    if (changed){
+      try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){}
+    }
+    /* 同じ日の他の枠が同時に画面上に表示されている場合、
+       再読み込みしなくても見た目がその場で揃うようにする */
+    var rows = document.querySelectorAll("#view-seat .seat-row-wrap"), k;
+    for (k = 0; k < rows.length; k++){
+      var r2 = rows[k];
+      if (r2 === row) continue;
+      if (teacherOfRow(r2) !== teacher) continue;
+      var seatInp = r2.querySelector(".js-seat-num");
+      if (seatInp && seatInp.value !== newNum) seatInp.value = newNum;
+    }
+  }
+  function bind(){
+    var inputs = document.querySelectorAll(".js-seat-num"), i;
+    for (i = 0; i < inputs.length; i++){
+      var inp = inputs[i];
+      if (inp.getAttribute("data-sync-bound") === "1") continue;
+      inp.setAttribute("data-sync-bound", "1");
+      inp.addEventListener("change", function(ev){ applySync(ev.target); });
+      inp.addEventListener("blur", function(ev){ applySync(ev.target); });
+    }
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
+  else bind();
+  setInterval(function(){ try { bind(); } catch(e){} }, 1200);
+})();
