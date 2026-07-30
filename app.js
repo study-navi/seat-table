@@ -2814,14 +2814,21 @@ document.addEventListener("DOMContentLoaded", init);
     var date = null;
     try { date = sessionStorage.getItem(KEY); } catch(e){ return; }
     if (!date) return;
-    try { sessionStorage.removeItem(KEY); } catch(e){}
     var inp = document.querySelector("#view-seat input[type=\"date\"]");
     if (!inp) return;
+    if (inp.value === date) return;
     inp.value = date;
     inp.dispatchEvent(new Event("change", { bubbles: true }));
   }
+  function cleanup(){ try { sessionStorage.removeItem(KEY); } catch(e){} }
   function boot(){
     try { restore(); } catch(e){}
+    /* 他の初期化処理が後から「今日」の日付で上書きしてくることがあるため、
+       少し時間を置いてからも重ねて復元を試みる。値は最後にまとめて消す。 */
+    setTimeout(function(){ try { restore(); } catch(e){} }, 400);
+    setTimeout(function(){ try { restore(); } catch(e){} }, 1200);
+    setTimeout(function(){ try { restore(); } catch(e){} }, 3000);
+    setTimeout(function(){ try { restore(); cleanup(); } catch(e){} }, 8500);
     var target = document.querySelector("#view-seat") || document.body;
     try {
       var obs = new MutationObserver(function(){ try { restore(); } catch(e){} });
