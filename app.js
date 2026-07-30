@@ -2772,6 +2772,7 @@ document.addEventListener("DOMContentLoaded", init);
     if (!window.confirm(msg)) return;
     block.seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
     try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
+    try { sessionStorage.setItem("seat-table-restore-date", date); } catch(e){}
     location.reload();
   }
   function inject(){
@@ -2796,6 +2797,36 @@ document.addEventListener("DOMContentLoaded", init);
     try {
       var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
       obs.observe(target, { childList: true, subtree: true });
+    } catch(e){}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else { try { boot(); } catch(e){} }
+})();
+
+/* ==========================================================
+   並べ替えなどで location.reload() する前に
+   sessionStorage に日付を控えておき、読み込み直し後に
+   その日付へ自動で戻す。何もなければ何もしない。
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-restore-date";
+  function restore(){
+    var date = null;
+    try { date = sessionStorage.getItem(KEY); } catch(e){ return; }
+    if (!date) return;
+    try { sessionStorage.removeItem(KEY); } catch(e){}
+    var inp = document.querySelector("#view-seat input[type=\"date\"]");
+    if (!inp) return;
+    inp.value = date;
+    inp.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  function boot(){
+    try { restore(); } catch(e){}
+    var target = document.querySelector("#view-seat") || document.body;
+    try {
+      var obs = new MutationObserver(function(){ try { restore(); } catch(e){} });
+      obs.observe(target, { childList: true, subtree: true });
+      setTimeout(function(){ obs.disconnect(); }, 8000);
     } catch(e){}
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
