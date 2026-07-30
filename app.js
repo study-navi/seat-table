@@ -2727,3 +2727,77 @@ document.addEventListener("DOMContentLoaded", init);
   setInterval(function(){ try { watch(); paint(); } catch(e){} }, 1500);
 })();
 
+/* ==========================================================
+   席番号（手入力）の順に、その枠の座席を並べ替えるボタン。
+   常時動く監視処理は使わず、MutationObserverでボタンの列が
+   再描画されたときだけ追加し直す（setIntervalに頼らないので、
+   タイマーが間引かれても影響を受けない）。実際の並べ替えは
+   ボタンを押した瞬間だけ動く単発処理。全角数字（１２３）も
+   半角に変換してから数値として比較する。
+   ========================================================== */
+(function(){
+  function toHalfWidth(s){
+    return String(s || "").replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
+  }
+  function isNumLike(v){ return /^\s*-?\d+(\.\d+)?\s*$/.test(toHalfWidth(v)); }
+  function cmp(a, b){
+    var an = isNumLike(a), bn = isNumLike(b);
+    if (an && bn) return parseFloat(toHalfWidth(a)) - parseFloat(toHalfWidth(b));
+    if (an && !bn) return -1;
+    if (!an && bn) return 1;
+    return String(a || "").localeCompare(String(b || ""), "ja");
+  }
+  function currentDate(){
+    var inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  function blockIndexOf(blockEl){
+    var all = document.querySelectorAll("#view-seat .lesson-block"), i;
+    for (i = 0; i < all.length; i++) if (all[i] === blockEl) return i;
+    return -1;
+  }
+  function doSort(blockEl){
+    var idx = blockIndexOf(blockEl);
+    if (idx < 0) return;
+    var date = currentDate();
+    if (!date) return;
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    if (!raw || !raw.days || !raw.days[date]) return;
+    var day = raw.days[date];
+    var blocks = day.blocks || day;
+    var block = blocks[idx];
+    if (!block || !block.seats || !block.seats.length) return;
+    var msg = "この枠の座席を、手入力した席番号の順に並べ替えます。\n" + block.seats.length + "件を対象にします。\nよろしいですか？";
+    if (!window.confirm(msg)) return;
+    block.seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
+    try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
+    location.reload();
+  }
+  function inject(){
+    var bars = document.querySelectorAll("#view-seat .block-actions"), i;
+    for (i = 0; i < bars.length; i++){
+      var bar = bars[i];
+      if (bar.querySelector(".js-sort-by-seat")) continue;
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "js-sort-by-seat";
+      b.textContent = "席番号順に並べ替え";
+      b.addEventListener("click", function(ev){
+        var block = ev.currentTarget.closest(".lesson-block");
+        if (block) doSort(block);
+      });
+      bar.appendChild(b);
+    }
+  }
+  function boot(){
+    try { inject(); } catch(e){}
+    var target = document.querySelector("#view-seat") || document.body;
+    try {
+      var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
+      obs.observe(target, { childList: true, subtree: true });
+    } catch(e){}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else { try { boot(); } catch(e){} }
+})();
