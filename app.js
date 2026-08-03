@@ -3194,3 +3194,71 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else { try { boot(); } catch(e){} }
 })();
+
+/* ==========================================================
+   その日の全ての枠を、まとめて席番号順に並べ替えるボタン。
+   枠ごとの「席番号順に並べ替え」ボタンはそのまま残し、
+   こちらは日付欄の近くに1つだけ追加する。
+   ========================================================== */
+(function(){
+  function toHalfWidth(s){
+    return String(s || "").replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
+  }
+  function isNumLike(v){ return /^\s*-?\d+(\.\d+)?\s*$/.test(toHalfWidth(v)); }
+  function cmp(a, b){
+    var an = isNumLike(a), bn = isNumLike(b);
+    if (an && bn) return parseFloat(toHalfWidth(a)) - parseFloat(toHalfWidth(b));
+    if (an && !bn) return -1;
+    if (!an && bn) return 1;
+    return String(a || "").localeCompare(String(b || ""), "ja");
+  }
+  function currentDate(){
+    var inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  function doSortDay(){
+    var date = currentDate();
+    if (!date) return;
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    if (!raw || !raw.days || !raw.days[date]){ window.alert("この日にはデータがありません。"); return; }
+    var day = raw.days[date];
+    var blocks = day.blocks || day;
+    if (!blocks || !blocks.length){ window.alert("この日にはデータがありません。"); return; }
+    var total = blocks.reduce(function(a, b){ return a + (b.seats ? b.seats.length : 0); }, 0);
+    if (!total){ window.alert("この日にはデータがありません。"); return; }
+    var msg = date + " の全ての枠（" + blocks.length + "枠・" + total + "席）を、席番号順に並べ替えます。\nよろしいですか？";
+    if (!window.confirm(msg)) return;
+    var i;
+    for (i = 0; i < blocks.length; i++){
+      if (blocks[i].seats && blocks[i].seats.length){
+        blocks[i].seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
+      }
+    }
+    try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
+    location.reload();
+  }
+  function inject(){
+    var bars = document.querySelectorAll("#view-seat .btn-row"), i;
+    for (i = 0; i < bars.length; i++){
+      var bar = bars[i];
+      if (bar.querySelector(".js-sort-by-seat-day")) continue;
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "js-sort-by-seat-day";
+      b.textContent = "この日をまとめて席番号順に並べ替え";
+      b.addEventListener("click", doSortDay);
+      bar.appendChild(b);
+    }
+  }
+  function boot(){
+    try { inject(); } catch(e){}
+    var target = document.querySelector("#view-seat") || document.body;
+    try {
+      var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
+      obs.observe(target, { childList: true, subtree: true });
+    } catch(e){}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else { try { boot(); } catch(e){} }
+})();
