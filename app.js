@@ -3069,3 +3069,124 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else { try { boot(); } catch(e){} }
 })();
+
+/* ==========================================================
+   合言葉での共有。その日全体のデータを、合言葉をキーにして
+   Supabase（manabitプロジェクトに間借り）へ送受信する。
+   テーブルへの直接アクセスはRLSで禁止し、
+   get_seat_share / set_seat_share という関数経由でしか
+   読み書きできない（合言葉を知らないと中身は見えない）。
+   ========================================================== */
+(function(){
+  var SUPABASE_URL = "https://uglxilcwbgqoofnzngux.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_R83zSq90hslRd5jl04sIPg_hZlLxfRC";
+  function sideOut(x){ return x ? [x.subject || "", x.grade || "", x.student || "", x.status || ""] : ["", "", "", ""]; }
+  function sideIn(a){ return { subject: a[0] || "", grade: a[1] || "", student: a[2] || "", status: a[3] || "" }; }
+  function compactSeats(seats){
+    return (seats || []).map(function(s){
+      return [s.seatNumber || "", s.teacher || "", sideOut(s.left), sideOut(s.right)];
+    });
+  }
+  function expandSeats(arr){
+    return (arr || []).map(function(t){
+      return { seatNumber: t[0] || "", teacher: t[1] || "", left: sideIn(t[2] || []), right: sideIn(t[3] || []) };
+    });
+  }
+  function compactDay(blocks){
+    return (blocks || []).map(function(b){ return [b.time || "", compactSeats(b.seats)]; });
+  }
+  function expandDay(arr){
+    return (arr || []).map(function(t){ return { time: t[0] || "", seats: expandSeats(t[1] || []) }; });
+  }
+  function currentDate(){
+    var inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  async function rpc(name, params){
+    var res = await fetch(SUPABASE_URL + "/rest/v1/rpc/" + name, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY },
+      body: JSON.stringify(params)
+    });
+    if (!res.ok) throw new Error("status " + res.status);
+    var text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }
+  function applyImportDay(date, blocks){
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")) || { days: {} }; } catch(e){ raw = { days: {} }; }
+    if (!raw.days) raw.days = {};
+    raw.days[date] = { blocks: blocks };
+    try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return false; }
+    return true;
+  }
+  async function doSend(){
+    var code = window.prompt("合言葉を決めてください（相手にも伝えます）");
+    if (!code) return;
+    code = code.trim();
+    if (!code) return;
+    var date = currentDate();
+    if (!date) return;
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    if (!raw || !raw.days || !raw.days[date]){ window.alert("この日にはデータがありません。"); return; }
+    var blocks = raw.days[date].blocks || raw.days[date];
+    if (!blocks || !blocks.length){ window.alert("この日にはデータがありません。"); return; }
+    var payload = JSON.stringify({ date: date, blocks: compactDay(blocks) });
+    try {
+      await rpc("set_seat_share", { p_code: code, p_data: payload });
+      window.alert("送信しました。合言葉「" + code + "」を相手に伝えてください。");
+    } catch(e){
+      window.alert("送信に失敗しました。通信環境を確認してください。");
+    }
+  }
+  async function doReceive(){
+    var code = window.prompt("合言葉を入力してください");
+    if (!code) return;
+    code = code.trim();
+    if (!code) return;
+    try {
+      var rows = await rpc("get_seat_share", { p_code: code });
+      if (!rows || !rows.length){ window.alert("その合言葉のデータは見つかりませんでした。"); return; }
+      var payload = JSON.parse(rows[0].data);
+      var blocks = expandDay(payload.blocks);
+      var seatCount = blocks.reduce(function(a, b){ return a + (b.seats ? b.seats.length : 0); }, 0);
+      var msg = payload.date + " の全データ（" + blocks.length + "枠・" + seatCount + "席）を取り込みます。\nこの端末の" + payload.date + "のデータは上書きされます。よろしいですか？";
+      if (window.confirm(msg)){
+        if (applyImportDay(payload.date, blocks)){
+          window.alert("取り込みました。");
+          location.reload();
+        } else {
+          window.alert("取り込みに失敗しました。");
+        }
+      }
+    } catch(e){
+      window.alert("受信に失敗しました。合言葉か通信環境を確認してください。");
+    }
+  }
+  function inject(){
+    var bars = document.querySelectorAll("#view-seat .btn-row"), i;
+    for (i = 0; i < bars.length; i++){
+      var bar = bars[i];
+      if (bar.querySelector(".js-code-send")) continue;
+      var sendBtn = document.createElement("button");
+      sendBtn.type = "button"; sendBtn.className = "js-code-send"; sendBtn.textContent = "合言葉で送る";
+      sendBtn.addEventListener("click", doSend);
+      var recvBtn = document.createElement("button");
+      recvBtn.type = "button"; recvBtn.className = "js-code-recv"; recvBtn.textContent = "合言葉で受け取る";
+      recvBtn.addEventListener("click", doReceive);
+      bar.appendChild(sendBtn);
+      bar.appendChild(recvBtn);
+    }
+  }
+  function boot(){
+    try { inject(); } catch(e){}
+    var target = document.querySelector("#view-seat") || document.body;
+    try {
+      var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
+      obs.observe(target, { childList: true, subtree: true });
+    } catch(e){}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else { try { boot(); } catch(e){} }
+})();
