@@ -3000,3 +3000,79 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else { try { boot(); } catch(e){} }
 })();
+
+/* ==========================================================
+   席番号の手入力を、同じ日の同じ先生の他の枠にも自動で反映する。
+   setIntervalには頼らず、MutationObserverで新しく現れた
+   席番号欄にだけイベントを付け直す（安定して動く仕組みに合わせる）。
+   ========================================================== */
+(function(){
+  function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function currentDate(){
+    var inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  function teacherOfRow(row){
+    var sel = row.querySelector(".teacher-col select");
+    if (!sel || !sel.value) return "";
+    var o = sel.options[sel.selectedIndex];
+    return o ? norm(o.text) : "";
+  }
+  function applySync(inputEl){
+    var row = inputEl.closest(".seat-row-wrap");
+    if (!row) return;
+    var teacher = teacherOfRow(row);
+    if (!teacher) return;
+    var newNum = inputEl.value;
+    var date = currentDate();
+    if (!date) return;
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    if (!raw || !raw.days || !raw.days[date]) return;
+    var day = raw.days[date];
+    var blocks = day.blocks || day;
+    var changed = false, i, j;
+    for (i = 0; i < blocks.length; i++){
+      var seats = blocks[i].seats || [];
+      for (j = 0; j < seats.length; j++){
+        if (norm(seats[j].teacher) === teacher && seats[j].seatNumber !== newNum){
+          seats[j].seatNumber = newNum;
+          changed = true;
+        }
+      }
+    }
+    if (changed){
+      try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){}
+    }
+    /* 同じ日の他の枠が同時に画面に表示されている場合は、
+       再読み込みしなくても見た目をその場で揃える */
+    var rows = document.querySelectorAll("#view-seat .seat-row-wrap"), k;
+    for (k = 0; k < rows.length; k++){
+      var r2 = rows[k];
+      if (r2 === row) continue;
+      if (teacherOfRow(r2) !== teacher) continue;
+      var seatInp = r2.querySelector(".js-seat-num");
+      if (seatInp && seatInp.value !== newNum) seatInp.value = newNum;
+    }
+  }
+  function bind(){
+    var inputs = document.querySelectorAll("#view-seat .js-seat-num"), i;
+    for (i = 0; i < inputs.length; i++){
+      var inp = inputs[i];
+      if (inp.getAttribute("data-teacher-sync-bound") === "1") continue;
+      inp.setAttribute("data-teacher-sync-bound", "1");
+      inp.addEventListener("change", function(ev){ applySync(ev.target); });
+      inp.addEventListener("blur", function(ev){ applySync(ev.target); });
+    }
+  }
+  function boot(){
+    try { bind(); } catch(e){}
+    var target = document.querySelector("#view-seat") || document.body;
+    try {
+      var obs = new MutationObserver(function(){ try { bind(); } catch(e){} });
+      obs.observe(target, { childList: true, subtree: true });
+    } catch(e){}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else { try { boot(); } catch(e){} }
+})();
