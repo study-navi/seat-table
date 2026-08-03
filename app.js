@@ -2868,104 +2868,97 @@ document.addEventListener("DOMContentLoaded", init);
       return { seatNumber: t[0] || "", teacher: t[1] || "", left: sideIn(t[2] || []), right: sideIn(t[3] || []) };
     });
   }
+  function compactDay(blocks){
+    return (blocks || []).map(function(b){ return [b.time || "", compactSeats(b.seats)]; });
+  }
+  function expandDay(arr){
+    return (arr || []).map(function(t){ return { time: t[0] || "", seats: expandSeats(t[1] || []) }; });
+  }
   function currentDate(){
     var inp = document.querySelector("#view-seat input[type=\"date\"]");
     return inp ? inp.value : "";
-  }
-  function blockIndexOf(blockEl){
-    var all = document.querySelectorAll("#view-seat .lesson-block"), i;
-    for (i = 0; i < all.length; i++) if (all[i] === blockEl) return i;
-    return -1;
   }
   function closeModal(){
     var m = document.getElementById("qrShareModal");
     if (m && m.parentNode) m.parentNode.removeChild(m);
   }
-  function showModal(url){
+  function showModal(url, byteLen){
     closeModal();
-    var qrImg = "https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=" + encodeURIComponent(url);
+    var qrImg = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&ecc=L&data=" + encodeURIComponent(url);
     var wrap = document.createElement("div");
     wrap.id = "qrShareModal";
     wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;";
     var box = document.createElement("div");
-    box.style.cssText = "background:#fff;padding:24px;border-radius:12px;max-width:340px;text-align:center;font-family:sans-serif;";
+    box.style.cssText = "background:#fff;padding:24px;border-radius:12px;max-width:360px;text-align:center;font-family:sans-serif;";
     var title = document.createElement("div");
-    title.textContent = "この枠をQRコードで共有";
+    title.textContent = "この日のデータをQRコードで共有";
     title.style.cssText = "font-weight:bold;margin-bottom:12px;";
     var img = document.createElement("img");
     img.src = qrImg;
-    img.width = 280; img.height = 280;
+    img.width = 300; img.height = 300;
     img.style.cssText = "display:block;margin:0 auto;";
     var hint = document.createElement("div");
     hint.textContent = "相手のスマホの標準カメラで読み取ってもらってください。";
     hint.style.cssText = "font-size:12px;color:#666;margin-top:12px;";
+    var warn = document.createElement("div");
+    if (byteLen > 2500){
+      warn.textContent = "データ量が多いため、模様が細かくスキャンしづらいことがあります。";
+      warn.style.cssText = "font-size:12px;color:#c0392b;margin-top:6px;";
+    }
     var closeBtn = document.createElement("button");
     closeBtn.type = "button";
     closeBtn.textContent = "閉じる";
     closeBtn.style.cssText = "margin-top:16px;padding:8px 20px;";
     closeBtn.addEventListener("click", closeModal);
-    box.appendChild(title); box.appendChild(img); box.appendChild(hint); box.appendChild(closeBtn);
+    box.appendChild(title); box.appendChild(img); box.appendChild(hint);
+    if (warn.textContent) box.appendChild(warn);
+    box.appendChild(closeBtn);
     wrap.appendChild(box);
     wrap.addEventListener("click", function(ev){ if (ev.target === wrap) closeModal(); });
     document.body.appendChild(wrap);
   }
-  function doShare(blockEl){
-    var idx = blockIndexOf(blockEl);
-    if (idx < 0) return;
+  function doShareDay(){
     var date = currentDate();
     if (!date) return;
     var raw = null;
     try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
-    if (!raw || !raw.days || !raw.days[date]) return;
+    if (!raw || !raw.days || !raw.days[date]){ window.alert("この日にはデータがありません。"); return; }
     var day = raw.days[date];
     var blocks = day.blocks || day;
-    var block = blocks[idx];
-    if (!block || !block.seats || !block.seats.length) { window.alert("この枠には座席データがありません。"); return; }
-    var compact = compactSeats(block.seats);
+    if (!blocks || !blocks.length){ window.alert("この日にはデータがありません。"); return; }
+    var compact = compactDay(blocks);
     var enc = toB64(JSON.stringify(compact));
     var base = location.origin + location.pathname;
-    var url = base + "?d=" + encodeURIComponent(date) + "&b=" + idx + "&import=" + enc;
-    showModal(url);
+    var url = base + "?d=" + encodeURIComponent(date) + "&importDay=" + enc;
+    showModal(url, url.length);
   }
   function inject(){
-    var bars = document.querySelectorAll("#view-seat .block-actions"), i;
+    var bars = document.querySelectorAll("#view-seat .btn-row"), i;
     for (i = 0; i < bars.length; i++){
       var bar = bars[i];
-      if (bar.querySelector(".js-qr-share")) continue;
+      if (bar.querySelector(".js-qr-share-day")) continue;
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "js-qr-share";
-      b.textContent = "QRで共有";
-      b.addEventListener("click", function(ev){
-        var block = ev.currentTarget.closest(".lesson-block");
-        if (block) doShare(block);
-      });
+      b.className = "js-qr-share-day";
+      b.textContent = "この日をQRで共有";
+      b.addEventListener("click", doShareDay);
       bar.appendChild(b);
     }
   }
-  function applyImport(date, blockIdx, seats){
+  function applyImportDay(date, blocks){
     var raw = null;
     try { raw = JSON.parse(localStorage.getItem("seat-table-v1")) || { days: {} }; } catch(e){ raw = { days: {} }; }
     if (!raw.days) raw.days = {};
-    if (!raw.days[date]) raw.days[date] = { blocks: [] };
-    var day = raw.days[date];
-    if (!day.blocks) day.blocks = [];
-    var blocks = day.blocks;
-    if (blocks[blockIdx]){
-      blocks[blockIdx].seats = seats;
-    } else {
-      blocks.push({ time: "", seats: seats });
-    }
+    raw.days[date] = { blocks: blocks };
     try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return false; }
     return true;
   }
   function checkImportOnLoad(){
     var params = new URLSearchParams(location.search);
-    var enc = params.get("import");
+    var enc = params.get("importDay");
     if (!enc) return;
     var date = params.get("d") || "";
-    var blockIdx = parseInt(params.get("b"), 10);
-    if (!date || !isFinite(blockIdx)){
+    if (!date){
       history.replaceState(null, "", location.pathname);
       return;
     }
@@ -2975,11 +2968,11 @@ document.addEventListener("DOMContentLoaded", init);
       history.replaceState(null, "", location.pathname);
       return;
     }
-    var seats = expandSeats(compact);
-    var names = seats.map(function(s){ return s.teacher; }).filter(Boolean).join("、");
-    var msg = date + " の枠に、" + seats.length + "件の座席データを取り込みます。\n担当講師: " + (names || "（不明）") + "\n\nこの端末の同じ枠のデータは上書きされます。よろしいですか？";
+    var blocks = expandDay(compact);
+    var seatCount = blocks.reduce(function(a, b){ return a + (b.seats ? b.seats.length : 0); }, 0);
+    var msg = date + " の全データ（" + blocks.length + "枠・" + seatCount + "席）を取り込みます。\nこの端末の" + date + "のデータは上書きされます。よろしいですか？";
     if (window.confirm(msg)){
-      if (applyImport(date, blockIdx, seats)){
+      if (applyImportDay(date, blocks)){
         window.alert("取り込みました。");
       } else {
         window.alert("取り込みに失敗しました。");
