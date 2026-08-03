@@ -2945,10 +2945,35 @@ document.addEventListener("DOMContentLoaded", init);
       bar.appendChild(b);
     }
   }
+  function normName(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function genId(){ return Math.random().toString(36).slice(2, 9); }
+  function ensureRoster(raw, blocks){
+    raw.teachers = raw.teachers || [];
+    raw.students = raw.students || [];
+    var teacherNames = {}, studentNames = {}, i;
+    for (i = 0; i < raw.teachers.length; i++) teacherNames[normName(raw.teachers[i].name)] = true;
+    for (i = 0; i < raw.students.length; i++) studentNames[normName(raw.students[i].name)] = true;
+    (blocks || []).forEach(function(b){
+      (b.seats || []).forEach(function(seat){
+        if (seat.teacher && !teacherNames[normName(seat.teacher)]){
+          raw.teachers.push({ id: genId(), name: seat.teacher });
+          teacherNames[normName(seat.teacher)] = true;
+        }
+        ["left", "right"].forEach(function(side){
+          var s = seat[side];
+          if (s && s.student && !studentNames[normName(s.student)]){
+            raw.students.push({ id: genId(), name: s.student, grade: s.grade || "" });
+            studentNames[normName(s.student)] = true;
+          }
+        });
+      });
+    });
+  }
   function applyImportDay(date, blocks){
     var raw = null;
     try { raw = JSON.parse(localStorage.getItem("seat-table-v1")) || { days: {} }; } catch(e){ raw = { days: {} }; }
     if (!raw.days) raw.days = {};
+    ensureRoster(raw, blocks);
     raw.days[date] = { blocks: blocks };
     try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return false; }
     return true;
@@ -3116,10 +3141,35 @@ document.addEventListener("DOMContentLoaded", init);
     var text = await res.text();
     return text ? JSON.parse(text) : null;
   }
+  function normName(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function genId(){ return Math.random().toString(36).slice(2, 9); }
+  function ensureRoster(raw, blocks){
+    raw.teachers = raw.teachers || [];
+    raw.students = raw.students || [];
+    var teacherNames = {}, studentNames = {}, i;
+    for (i = 0; i < raw.teachers.length; i++) teacherNames[normName(raw.teachers[i].name)] = true;
+    for (i = 0; i < raw.students.length; i++) studentNames[normName(raw.students[i].name)] = true;
+    (blocks || []).forEach(function(b){
+      (b.seats || []).forEach(function(seat){
+        if (seat.teacher && !teacherNames[normName(seat.teacher)]){
+          raw.teachers.push({ id: genId(), name: seat.teacher });
+          teacherNames[normName(seat.teacher)] = true;
+        }
+        ["left", "right"].forEach(function(side){
+          var s = seat[side];
+          if (s && s.student && !studentNames[normName(s.student)]){
+            raw.students.push({ id: genId(), name: s.student, grade: s.grade || "" });
+            studentNames[normName(s.student)] = true;
+          }
+        });
+      });
+    });
+  }
   function applyImportDay(date, blocks){
     var raw = null;
     try { raw = JSON.parse(localStorage.getItem("seat-table-v1")) || { days: {} }; } catch(e){ raw = { days: {} }; }
     if (!raw.days) raw.days = {};
+    ensureRoster(raw, blocks);
     raw.days[date] = { blocks: blocks };
     try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return false; }
     return true;
