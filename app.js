@@ -3080,6 +3080,10 @@ document.addEventListener("DOMContentLoaded", init);
 (function(){
   var SUPABASE_URL = "https://uglxilcwbgqoofnzngux.supabase.co";
   var SUPABASE_KEY = "sb_publishable_R83zSq90hslRd5jl04sIPg_hZlLxfRC";
+  /* 校舎ごとに合言葉のキーを分ける。他校の座席表アプリと同じ
+     Supabaseの表を使い回しているため、そのままだと偶然同じ
+     合言葉を使うと別の校舎のデータとぶつかる可能性がある。 */
+  var CODE_PREFIX = "hiiragiyama:";
   function sideOut(x){ return x ? [x.subject || "", x.grade || "", x.student || "", x.status || ""] : ["", "", "", ""]; }
   function sideIn(a){ return { subject: a[0] || "", grade: a[1] || "", student: a[2] || "", status: a[3] || "" }; }
   function compactSeats(seats){
@@ -3134,7 +3138,7 @@ document.addEventListener("DOMContentLoaded", init);
     if (!blocks || !blocks.length){ window.alert("この日にはデータがありません。"); return; }
     var payload = JSON.stringify({ date: date, blocks: compactDay(blocks) });
     try {
-      await rpc("set_seat_share", { p_code: code, p_data: payload });
+      await rpc("set_seat_share", { p_code: CODE_PREFIX + code, p_data: payload });
       window.alert("送信しました。合言葉「" + code + "」を相手に伝えてください。");
     } catch(e){
       window.alert("送信に失敗しました。通信環境を確認してください。");
@@ -3146,7 +3150,7 @@ document.addEventListener("DOMContentLoaded", init);
     code = code.trim();
     if (!code) return;
     try {
-      var rows = await rpc("get_seat_share", { p_code: code });
+      var rows = await rpc("get_seat_share", { p_code: CODE_PREFIX + code });
       if (!rows || !rows.length){ window.alert("その合言葉のデータは見つかりませんでした。"); return; }
       var payload = JSON.parse(rows[0].data);
       var blocks = expandDay(payload.blocks);
