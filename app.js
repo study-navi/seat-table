@@ -3400,107 +3400,12 @@ document.addEventListener("DOMContentLoaded", init);
 })();
 
 /* ==========================================================
-   1対1の隣に「体験授業」ボタンを追加する。
-   eWebからは取り込めないので手打ち専用。押すとその生徒の
-   座席データに trial:true を直接保存し、ボタンが黄色になる。
-   ========================================================== */
-(function(){
-  function currentDate(){
-    var inp = document.querySelector("#view-seat input[type=\"date\"]");
-    return inp ? inp.value : "";
-  }
-  function locate(cell){
-    var side = cell.dataset && cell.dataset.side ? cell.dataset.side : (cell.querySelector("select") ? cell.querySelector("select").dataset.side : "");
-    if (!side){
-      var sel = cell.querySelector("select");
-      side = sel ? sel.getAttribute("data-side") : "";
-    }
-    var blockEl = cell.closest(".lesson-block");
-    var rowEl = cell.closest(".seat-row-wrap");
-    if (!blockEl || !rowEl || !side) return null;
-    var allBlocks = document.querySelectorAll("#view-seat .lesson-block");
-    var blockIdx = Array.prototype.indexOf.call(allBlocks, blockEl);
-    var allRows = blockEl.querySelectorAll(".seat-row-wrap");
-    var rowIdx = Array.prototype.indexOf.call(allRows, rowEl);
-    if (blockIdx < 0 || rowIdx < 0) return null;
-    return { blockIdx: blockIdx, rowIdx: rowIdx, side: side };
-  }
-  function getSeatData(loc){
-    var date = currentDate();
-    if (!date) return null;
-    var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return null; }
-    if (!raw || !raw.days || !raw.days[date]) return null;
-    var blocks = raw.days[date].blocks || raw.days[date];
-    var block = blocks[loc.blockIdx];
-    if (!block || !block.seats) return null;
-    var seat = block.seats[loc.rowIdx];
-    if (!seat) return null;
-    return { raw: raw, date: date, seat: seat };
-  }
-  function isActive(cell){
-    var loc = locate(cell);
-    if (!loc) return false;
-    var found = getSeatData(loc);
-    if (!found) return false;
-    var sideObj = found.seat[loc.side];
-    return !!(sideObj && sideObj.trial);
-  }
-  function toggle(cell){
-    var loc = locate(cell);
-    if (!loc) return;
-    var found = getSeatData(loc);
-    if (!found) return;
-    var sideObj = found.seat[loc.side];
-    if (!sideObj) return;
-    sideObj.trial = !sideObj.trial;
-    try { localStorage.setItem("seat-table-v1", JSON.stringify(found.raw)); } catch(e){}
-  }
-  function updateButton(btn, cell){
-    btn.classList.toggle("active", isActive(cell));
-  }
-  function inject(){
-    var cells = document.querySelectorAll("#view-seat .student-cell"), i;
-    for (i = 0; i < cells.length; i++){
-      var cell = cells[i];
-      var bar = cell.querySelector(".status-buttons");
-      if (!bar) continue;
-      var btn = bar.querySelector(".js-trial-toggle");
-      if (!btn){
-        btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "js-trial-toggle";
-        btn.textContent = "体験授業";
-        btn.addEventListener("click", function(ev){
-          var c = ev.currentTarget.closest(".student-cell");
-          if (!c) return;
-          toggle(c);
-          updateButton(ev.currentTarget, c);
-        });
-        bar.appendChild(btn);
-      }
-      updateButton(btn, cell);
-    }
-  }
-  function boot(){
-    try { inject(); } catch(e){}
-    var target = document.querySelector("#view-seat") || document.body;
-    try {
-      var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
-      obs.observe(target, { childList: true, subtree: true });
-    } catch(e){}
-    setInterval(function(){ try { inject(); } catch(e){} }, 1500);
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else { try { boot(); } catch(e){} }
-})();
-
-/* ==========================================================
    「1対1」の隣に「体験授業」ボタンを追加する。
-   eWebからは取り込めない完全手打ちの項目なので、
-   名前ではなく、その席（生徒名の入っているオブジェクト）
-   自体に trial フラグを持たせて確実に紐づける。
-   押すと黄色になる。
+   eWebからは取り込めない完全手打ちの項目。
+   その席（生徒名の入っているオブジェクト）自体に
+   trial フラグを持たせて確実に紐づける。
+   押すとボタンが黄色になり、生徒名欄全体（講習・振替・
+   欠席と同じ見た目）も薄い黄色になる。
    ========================================================== */
 (function(){
   function currentDate(){
@@ -3517,7 +3422,7 @@ document.addEventListener("DOMContentLoaded", init);
     for (i = 0; i < all.length; i++) if (all[i] === rowEl) return i;
     return -1;
   }
-  function locate(cell){
+  function locateTrial(cell){
     var sel = cell.querySelector("select");
     var side = sel ? sel.getAttribute("data-side") : null;
     var row = cell.closest(".seat-row-wrap");
@@ -3528,7 +3433,7 @@ document.addEventListener("DOMContentLoaded", init);
     if (bIdx < 0 || sIdx < 0) return null;
     return { bIdx: bIdx, sIdx: sIdx, side: side };
   }
-  function getSeatSide(loc){
+  function getTrialSeatSide(loc){
     var date = currentDate();
     if (!date) return null;
     var raw = null;
@@ -3541,24 +3446,26 @@ document.addEventListener("DOMContentLoaded", init);
     if (!seat[loc.side]) return null;
     return { raw: raw, date: date, seat: seat, side: loc.side };
   }
-  function isActive(cell){
-    var loc = locate(cell);
+  function trialIsActive(cell){
+    var loc = locateTrial(cell);
     if (!loc) return false;
-    var found = getSeatSide(loc);
+    var found = getTrialSeatSide(loc);
     return !!(found && found.seat[found.side].trial);
   }
-  function toggle(cell){
-    var loc = locate(cell);
+  function trialToggle(cell){
+    var loc = locateTrial(cell);
     if (!loc) return;
-    var found = getSeatSide(loc);
+    var found = getTrialSeatSide(loc);
     if (!found){ window.alert("先に生徒を選択してください。"); return; }
     found.seat[found.side].trial = !found.seat[found.side].trial;
     try { localStorage.setItem("seat-table-v1", JSON.stringify(found.raw)); } catch(e){}
   }
-  function updateButton(btn, cell){
-    btn.classList.toggle("active", isActive(cell));
+  function updateTrialUI(btn, cell){
+    var active = trialIsActive(cell);
+    btn.classList.toggle("active", active);
+    cell.classList.toggle("trial-active", active);
   }
-  function inject(){
+  function injectTrial(){
     var cells = document.querySelectorAll("#view-seat .student-cell"), i;
     for (i = 0; i < cells.length; i++){
       var cell = cells[i];
@@ -3573,85 +3480,23 @@ document.addEventListener("DOMContentLoaded", init);
         btn.addEventListener("click", function(ev){
           var c = ev.currentTarget.closest(".student-cell");
           if (!c) return;
-          toggle(c);
-          updateButton(ev.currentTarget, c);
+          trialToggle(c);
+          updateTrialUI(ev.currentTarget, c);
         });
         bar.appendChild(btn);
       }
-      updateButton(btn, cell);
+      updateTrialUI(btn, cell);
     }
   }
-  function boot(){
-    try { inject(); } catch(e){}
+  function bootTrial(){
+    try { injectTrial(); } catch(e){}
     var target = document.querySelector("#view-seat") || document.body;
     try {
-      var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
+      var obs = new MutationObserver(function(){ try { injectTrial(); } catch(e){} });
       obs.observe(target, { childList: true, subtree: true });
     } catch(e){}
-    setInterval(function(){ try { inject(); } catch(e){} }, 1500);
+    setInterval(function(){ try { injectTrial(); } catch(e){} }, 1500);
   }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else { try { boot(); } catch(e){} }
-})();
-
-/* ==========================================================
-   講習・振替・欠席・1対1の隣に「体験授業」ボタンを追加する。
-   eWebからは取り込めないため手打ち専用。押すとボタンが黄色になり、
-   その席の生徒名欄に自動で「体験授業」と入力される。
-   もう一度押すと解除され、生徒名欄も空に戻る。
-   ========================================================== */
-(function(){
-  function ensureOption(sel){
-    var opt = Array.from(sel.options).find(function(o){ return o.value === "体験授業"; });
-    if (!opt){
-      opt = document.createElement("option");
-      opt.value = "体験授業";
-      opt.textContent = "体験授業";
-      sel.appendChild(opt);
-    }
-  }
-  function inject(){
-    var cells = document.querySelectorAll("#view-seat .student-cell"), i;
-    for (i = 0; i < cells.length; i++){
-      var cell = cells[i];
-      var sel = cell.querySelector("select.student-select");
-      var bar = cell.querySelector(".status-buttons");
-      if (!sel || !bar) continue;
-      ensureOption(sel);
-      var btn = bar.querySelector(".js-trial-toggle");
-      if (!btn){
-        btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "js-trial-toggle";
-        btn.textContent = "体験授業";
-        btn.addEventListener("click", function(ev){
-          var c = ev.currentTarget.closest(".student-cell");
-          if (!c) return;
-          var s = c.querySelector("select.student-select");
-          if (!s) return;
-          var nowActive = ev.currentTarget.classList.contains("active");
-          if (!nowActive){
-            ensureOption(s);
-            s.value = "体験授業";
-          } else {
-            s.value = "";
-          }
-          s.dispatchEvent(new Event("change", { bubbles: true }));
-          ev.currentTarget.classList.toggle("active", !nowActive);
-        });
-        bar.appendChild(btn);
-      }
-      btn.classList.toggle("active", sel.value === "体験授業");
-    }
-  }
-  function boot(){
-    try { inject(); } catch(e){}
-    var target = document.querySelector("#view-seat") || document.body;
-    try {
-      var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
-      obs.observe(target, { childList: true, subtree: true });
-    } catch(e){}
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else { try { boot(); } catch(e){} }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootTrial);
+  else { try { bootTrial(); } catch(e){} }
 })();
