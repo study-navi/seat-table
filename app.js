@@ -3027,6 +3027,17 @@ document.addEventListener("DOMContentLoaded", init);
    ========================================================== */
 (function(){
   function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function toHalfWidth(s){
+    return String(s || "").replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
+  }
+  function isNumLike(v){ return /^\s*-?\d+(\.\d+)?\s*$/.test(toHalfWidth(v)); }
+  function cmp(a, b){
+    var an = isNumLike(a), bn = isNumLike(b);
+    if (an && bn) return parseFloat(toHalfWidth(a)) - parseFloat(toHalfWidth(b));
+    if (an && !bn) return -1;
+    if (!an && bn) return 1;
+    return String(a || "").localeCompare(String(b || ""), "ja");
+  }
   function currentDate(){
     var inp = document.querySelector("#view-seat input[type=\"date\"]");
     return inp ? inp.value : "";
@@ -3050,29 +3061,24 @@ document.addEventListener("DOMContentLoaded", init);
     if (!raw || !raw.days || !raw.days[date]) return;
     var day = raw.days[date];
     var blocks = day.blocks || day;
-    var changed = false, i, j;
+    var i, j;
     for (i = 0; i < blocks.length; i++){
       var seats = blocks[i].seats || [];
       for (j = 0; j < seats.length; j++){
-        if (norm(seats[j].teacher) === teacher && seats[j].seatNumber !== newNum){
+        if (norm(seats[j].teacher) === teacher){
           seats[j].seatNumber = newNum;
-          changed = true;
         }
       }
     }
-    if (changed){
-      try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){}
+    /* 番号を反映したその場で、日全体を席番号順に自動で並べ替える */
+    for (i = 0; i < blocks.length; i++){
+      if (blocks[i].seats && blocks[i].seats.length){
+        blocks[i].seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
+      }
     }
-    /* 同じ日の他の枠が同時に画面に表示されている場合は、
-       再読み込みしなくても見た目をその場で揃える */
-    var rows = document.querySelectorAll("#view-seat .seat-row-wrap"), k;
-    for (k = 0; k < rows.length; k++){
-      var r2 = rows[k];
-      if (r2 === row) continue;
-      if (teacherOfRow(r2) !== teacher) continue;
-      var seatInp = r2.querySelector(".js-seat-num");
-      if (seatInp && seatInp.value !== newNum) seatInp.value = newNum;
-    }
+    try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
+    try { sessionStorage.setItem("seat-table-restore-date", date); } catch(e){}
+    location.reload();
   }
   function bind(){
     var inputs = document.querySelectorAll("#view-seat .js-seat-num"), i;
@@ -3095,7 +3101,6 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else { try { boot(); } catch(e){} }
 })();
-
 /* ==========================================================
    合言葉での共有。その日全体のデータを、合言葉をキーにして
    Supabase（manabitプロジェクトに間借り）へ送受信する。
