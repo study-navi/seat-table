@@ -3313,3 +3313,86 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else { try { boot(); } catch(e){} }
 })();
+
+/* ==========================================================
+   講習・振替・欠席の隣に「1対1」ボタンを追加する。
+   押すと、その生徒を「1対1」として seat-table-solo に登録/解除する。
+   実際の斜線描画（隣の空席への反映）は、既存の1対1機能の
+   setIntervalが自動で拾って再描画してくれるので、ここでは
+   マップの更新とボタン自身の見た目更新だけを行う。
+   ========================================================== */
+(function(){
+  var KEY = "seat-table-solo";
+  function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+  function save(all){ try { localStorage.setItem(KEY, JSON.stringify(all)); } catch(e){} }
+  function currentDate(){
+    var inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  function nameOf(cell){
+    var s = cell.querySelector("select");
+    if (!s || !s.value) return "";
+    var o = s.options[s.selectedIndex];
+    return o ? norm(o.text) : "";
+  }
+  function isActive(cell){
+    var name = nameOf(cell);
+    if (!name) return false;
+    var date = currentDate();
+    var all = load();
+    return !!(all[date] && all[date][name]);
+  }
+  function toggle(cell){
+    var name = nameOf(cell);
+    if (!name){ window.alert("先に生徒を選択してください。"); return; }
+    var date = currentDate();
+    if (!date) return;
+    var all = load();
+    if (!all[date]) all[date] = {};
+    if (all[date][name]){
+      delete all[date][name];
+    } else {
+      all[date][name] = 1;
+    }
+    save(all);
+  }
+  function updateButton(btn, cell){
+    var active = isActive(cell);
+    btn.classList.toggle("active", active);
+  }
+  function inject(){
+    var cells = document.querySelectorAll("#view-seat .student-cell"), i;
+    for (i = 0; i < cells.length; i++){
+      var cell = cells[i];
+      var bar = cell.querySelector(".status-buttons");
+      if (!bar) continue;
+      var btn = bar.querySelector(".js-solo-toggle");
+      if (!btn){
+        btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "js-solo-toggle";
+        btn.textContent = "1対1";
+        btn.addEventListener("click", function(ev){
+          var c = ev.currentTarget.closest(".student-cell");
+          if (!c) return;
+          toggle(c);
+          updateButton(ev.currentTarget, c);
+        });
+        bar.appendChild(btn);
+      }
+      updateButton(btn, cell);
+    }
+  }
+  function boot(){
+    try { inject(); } catch(e){}
+    var target = document.querySelector("#view-seat") || document.body;
+    try {
+      var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
+      obs.observe(target, { childList: true, subtree: true });
+    } catch(e){}
+    setInterval(function(){ try { inject(); } catch(e){} }, 1500);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else { try { boot(); } catch(e){} }
+})();
