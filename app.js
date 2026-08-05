@@ -2703,7 +2703,7 @@ document.addEventListener("DOMContentLoaded", init);
      描く。JSはクラスの付け外しだけを行い、座標やサイズの計算は
      一切しない。これでプレビューと実際の印刷がズレる余地がなくなる。 */
   function paint(){
-    var views = document.querySelectorAll(".view"), vi, rows = [];
+    var views = document.querySelectorAll(".view, .print-preview-page"), vi, rows = [];
     for (vi = 0; vi < views.length; vi++){
       if (getComputedStyle(views[vi]).display === "none") continue;
       var found = views[vi].querySelectorAll(".seat-row-wrap");
