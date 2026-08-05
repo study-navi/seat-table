@@ -3593,3 +3593,65 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else { try { boot(); } catch(e){} }
 })();
+
+/* ==========================================================
+   講習・振替・欠席・1対1の隣に「体験授業」ボタンを追加する。
+   eWebからは取り込めないため手打ち専用。押すとボタンが黄色になり、
+   その席の生徒名欄に自動で「体験授業」と入力される。
+   もう一度押すと解除され、生徒名欄も空に戻る。
+   ========================================================== */
+(function(){
+  function ensureOption(sel){
+    var opt = Array.from(sel.options).find(function(o){ return o.value === "体験授業"; });
+    if (!opt){
+      opt = document.createElement("option");
+      opt.value = "体験授業";
+      opt.textContent = "体験授業";
+      sel.appendChild(opt);
+    }
+  }
+  function inject(){
+    var cells = document.querySelectorAll("#view-seat .student-cell"), i;
+    for (i = 0; i < cells.length; i++){
+      var cell = cells[i];
+      var sel = cell.querySelector("select.student-select");
+      var bar = cell.querySelector(".status-buttons");
+      if (!sel || !bar) continue;
+      ensureOption(sel);
+      var btn = bar.querySelector(".js-trial-toggle");
+      if (!btn){
+        btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "js-trial-toggle";
+        btn.textContent = "体験授業";
+        btn.addEventListener("click", function(ev){
+          var c = ev.currentTarget.closest(".student-cell");
+          if (!c) return;
+          var s = c.querySelector("select.student-select");
+          if (!s) return;
+          var nowActive = ev.currentTarget.classList.contains("active");
+          if (!nowActive){
+            ensureOption(s);
+            s.value = "体験授業";
+          } else {
+            s.value = "";
+          }
+          s.dispatchEvent(new Event("change", { bubbles: true }));
+          ev.currentTarget.classList.toggle("active", !nowActive);
+        });
+        bar.appendChild(btn);
+      }
+      btn.classList.toggle("active", sel.value === "体験授業");
+    }
+  }
+  function boot(){
+    try { inject(); } catch(e){}
+    var target = document.querySelector("#view-seat") || document.body;
+    try {
+      var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
+      obs.observe(target, { childList: true, subtree: true });
+    } catch(e){}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else { try { boot(); } catch(e){} }
+})();
