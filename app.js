@@ -2725,6 +2725,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   try { watch(); paint(); } catch(e){}
   setInterval(function(){ try { watch(); paint(); } catch(e){} }, 1500);
+  window.__repaintSolo = function(){ try { paint(); } catch(e){} };
 })();
 
 /* ==========================================================
@@ -3378,6 +3379,7 @@ document.addEventListener("DOMContentLoaded", init);
           if (!c) return;
           toggle(c);
           updateButton(ev.currentTarget, c);
+          if (window.__repaintSolo) { try { window.__repaintSolo(); } catch(e){} }
         });
         bar.appendChild(btn);
       }
