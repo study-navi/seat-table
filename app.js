@@ -3398,3 +3398,99 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else { try { boot(); } catch(e){} }
 })();
+
+/* ==========================================================
+   1対1の隣に「体験授業」ボタンを追加する。
+   eWebからは取り込めないので手打ち専用。押すとその生徒の
+   座席データに trial:true を直接保存し、ボタンが黄色になる。
+   ========================================================== */
+(function(){
+  function currentDate(){
+    var inp = document.querySelector("#view-seat input[type=\"date\"]");
+    return inp ? inp.value : "";
+  }
+  function locate(cell){
+    var side = cell.dataset && cell.dataset.side ? cell.dataset.side : (cell.querySelector("select") ? cell.querySelector("select").dataset.side : "");
+    if (!side){
+      var sel = cell.querySelector("select");
+      side = sel ? sel.getAttribute("data-side") : "";
+    }
+    var blockEl = cell.closest(".lesson-block");
+    var rowEl = cell.closest(".seat-row-wrap");
+    if (!blockEl || !rowEl || !side) return null;
+    var allBlocks = document.querySelectorAll("#view-seat .lesson-block");
+    var blockIdx = Array.prototype.indexOf.call(allBlocks, blockEl);
+    var allRows = blockEl.querySelectorAll(".seat-row-wrap");
+    var rowIdx = Array.prototype.indexOf.call(allRows, rowEl);
+    if (blockIdx < 0 || rowIdx < 0) return null;
+    return { blockIdx: blockIdx, rowIdx: rowIdx, side: side };
+  }
+  function getSeatData(loc){
+    var date = currentDate();
+    if (!date) return null;
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return null; }
+    if (!raw || !raw.days || !raw.days[date]) return null;
+    var blocks = raw.days[date].blocks || raw.days[date];
+    var block = blocks[loc.blockIdx];
+    if (!block || !block.seats) return null;
+    var seat = block.seats[loc.rowIdx];
+    if (!seat) return null;
+    return { raw: raw, date: date, seat: seat };
+  }
+  function isActive(cell){
+    var loc = locate(cell);
+    if (!loc) return false;
+    var found = getSeatData(loc);
+    if (!found) return false;
+    var sideObj = found.seat[loc.side];
+    return !!(sideObj && sideObj.trial);
+  }
+  function toggle(cell){
+    var loc = locate(cell);
+    if (!loc) return;
+    var found = getSeatData(loc);
+    if (!found) return;
+    var sideObj = found.seat[loc.side];
+    if (!sideObj) return;
+    sideObj.trial = !sideObj.trial;
+    try { localStorage.setItem("seat-table-v1", JSON.stringify(found.raw)); } catch(e){}
+  }
+  function updateButton(btn, cell){
+    btn.classList.toggle("active", isActive(cell));
+  }
+  function inject(){
+    var cells = document.querySelectorAll("#view-seat .student-cell"), i;
+    for (i = 0; i < cells.length; i++){
+      var cell = cells[i];
+      var bar = cell.querySelector(".status-buttons");
+      if (!bar) continue;
+      var btn = bar.querySelector(".js-trial-toggle");
+      if (!btn){
+        btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "js-trial-toggle";
+        btn.textContent = "体験授業";
+        btn.addEventListener("click", function(ev){
+          var c = ev.currentTarget.closest(".student-cell");
+          if (!c) return;
+          toggle(c);
+          updateButton(ev.currentTarget, c);
+        });
+        bar.appendChild(btn);
+      }
+      updateButton(btn, cell);
+    }
+  }
+  function boot(){
+    try { inject(); } catch(e){}
+    var target = document.querySelector("#view-seat") || document.body;
+    try {
+      var obs = new MutationObserver(function(){ try { inject(); } catch(e){} });
+      obs.observe(target, { childList: true, subtree: true });
+    } catch(e){}
+    setInterval(function(){ try { inject(); } catch(e){} }, 1500);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else { try { boot(); } catch(e){} }
+})();
