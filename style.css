@@ -395,12 +395,16 @@ html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:
    色は薄いグレーだと白黒印刷モードや低画質設定で飛ばされることが
    あるため、黒に近い濃さにして線も太くする。 */
 .cell.solo-blocked{
-/* 間隔は40pxを基準に、縮小率（--print-page-scale）が小さいほど
-   実際に印刷される密度が細かくなりすぎないよう、CSSの座標上では
-   逆に広げておく（縮小されて元の見た目に戻る）。
-   プリンターのRIP処理が「展開中」のまま固まる事故を防ぐため。 */
-background-image: repeating-linear-gradient(45deg,
-#000 0, #000 calc(4px / var(--print-page-scale, 1)), transparent calc(4px / var(--print-page-scale, 1)), transparent calc(40px / var(--print-page-scale, 1)));
+/* repeating-linear-gradientは一部プリンターのRIP処理で
+   「展開中」のまま固まる（受信データ量が異常に膨れる）事故が
+   何度か起きたため、単純な画像（SVGタイル）の繰り返し貼り付けに
+   変更した。RIPにとっては「1枚の画像を並べるだけ」で済むため、
+   計算量が跳ね上がる余地がない。
+   縮小率（--print-page-scale）が小さいときはタイルも大きくして、
+   実際に印刷される線の間隔が細かくなりすぎないようにする。 */
+background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cline x1='0' y1='40' x2='40' y2='0' stroke='%23000' stroke-width='4'/%3E%3C/svg%3E");
+background-repeat: repeat;
+background-size: calc(40px / var(--print-page-scale, 1)) calc(40px / var(--print-page-scale, 1));
 -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 /* 折りたたみ用 */
