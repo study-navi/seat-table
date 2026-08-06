@@ -395,8 +395,12 @@ html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:
    色は薄いグレーだと白黒印刷モードや低画質設定で飛ばされることが
    あるため、黒に近い濃さにして線も太くする。 */
 .cell.solo-blocked{
+/* 間隔は40pxを基準に、縮小率（--print-page-scale）が小さいほど
+   実際に印刷される密度が細かくなりすぎないよう、CSSの座標上では
+   逆に広げておく（縮小されて元の見た目に戻る）。
+   プリンターのRIP処理が「展開中」のまま固まる事故を防ぐため。 */
 background-image: repeating-linear-gradient(45deg,
-#000 0, #000 3px, transparent 3px, transparent 20px);
+#000 0, #000 calc(4px / var(--print-page-scale, 1)), transparent calc(4px / var(--print-page-scale, 1)), transparent calc(40px / var(--print-page-scale, 1)));
 -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 /* 折りたたみ用 */
