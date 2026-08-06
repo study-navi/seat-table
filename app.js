@@ -2656,6 +2656,8 @@ document.addEventListener("DOMContentLoaded", init);
   function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
   function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
   function isSolo(subj){ return /[<\uFF1C][^>\uFF1E]*[>\uFF1E]/.test(String(subj || "")); }
+  function stripBrackets(subj){ return String(subj || "").replace(/[<\uFF1C][^>\uFF1E]*[>\uFF1E]/g, "").trim(); }
+  function comboKey(name, subj){ return norm(name) + "\u2016" + norm(stripBrackets(subj)); }
   function absorb(text){
     var p = null;
     try { p = JSON.parse(text); } catch(e){ return false; }
@@ -2666,7 +2668,7 @@ document.addEventListener("DOMContentLoaded", init);
       if (!it) continue;
       var subj = it.subject || (it.raw && it.raw.subject_name) || "";
       if (!isSolo(subj)) continue;
-      map[norm(it.student_name)] = 1;
+      map[comboKey(it.student_name, subj)] = 1;
       n++;
     }
     var all = load();
@@ -2699,9 +2701,13 @@ document.addEventListener("DOMContentLoaded", init);
     var o = s.options[s.selectedIndex];
     return o ? norm(o.text) : "";
   }
-  /* 斜線はCSS(.cell.solo-blocked の repeating-linear-gradient)だけで
-     描く。JSはクラスの付け外しだけを行い、座標やサイズの計算は
-     一切しない。これでプレビューと実際の印刷がズレる余地がなくなる。 */
+  function subjectOf(cell){
+    var inp = cell.querySelector(".js-subject");
+    return inp ? inp.value : "";
+  }
+  /* 斜線はCSS(.cell.solo-blocked の repeating-linear-gradient)だけで描く。
+     判定は「生徒名＋科目」の組み合わせで行う。同じ生徒でも科目によって
+     1対1だったり1対2だったりするため、生徒名だけでは区別できないため。 */
   function paint(){
     var views = document.querySelectorAll(".view, .print-preview-page"), vi, rows = [];
     for (vi = 0; vi < views.length; vi++){
@@ -2715,10 +2721,13 @@ document.addEventListener("DOMContentLoaded", init);
       var kids = row.children;
       if (kids.length < 8) continue;
       var map = load()[dateOf(row)] || {};
-      var leftSolo = !!map[nameOf(kids[4])];
-      var rightSolo = !!map[nameOf(kids[7])];
-      var onRight = leftSolo && !nameOf(kids[7]);
-      var onLeft = rightSolo && !nameOf(kids[4]);
+      var leftName = nameOf(kids[4]), rightName = nameOf(kids[7]);
+      var leftKey = comboKey(leftName, subjectOf(kids[2]));
+      var rightKey = comboKey(rightName, subjectOf(kids[5]));
+      var leftSolo = !!(leftName && map[leftKey]);
+      var rightSolo = !!(rightName && map[rightKey]);
+      var onRight = leftSolo && !rightName;
+      var onLeft = rightSolo && !leftName;
       [kids[5], kids[6], kids[7]].forEach(function(c){ c.classList.toggle("solo-blocked", onRight); });
       [kids[2], kids[3], kids[4]].forEach(function(c){ c.classList.toggle("solo-blocked", onLeft); });
     }
@@ -2727,7 +2736,6 @@ document.addEventListener("DOMContentLoaded", init);
   setInterval(function(){ try { watch(); paint(); } catch(e){} }, 1500);
   window.__repaintSolo = function(){ try { paint(); } catch(e){} };
 })();
-
 /* ==========================================================
    席番号（手入力）の順に、その枠の座席を並べ替えるボタン。
    常時動く監視処理は使わず、MutationObserverでボタンの列が
@@ -3371,12 +3379,25 @@ document.addEventListener("DOMContentLoaded", init);
     var o = s.options[s.selectedIndex];
     return o ? norm(o.text) : "";
   }
+  function comboKey(name, subj){ return norm(name) + "\u2016" + norm(subj); }
+  function subjectOf(studentCell){
+    var sel = studentCell.querySelector("select");
+    var side = sel ? sel.getAttribute("data-side") : null;
+    var row = studentCell.closest(".seat-row-wrap");
+    if (!row) return "";
+    var kids = row.children;
+    if (kids.length < 8) return "";
+    var subjCell = side === "right" ? kids[5] : kids[2];
+    var inp = subjCell.querySelector(".js-subject");
+    return inp ? inp.value : "";
+  }
   function isActive(cell){
     var name = nameOf(cell);
     if (!name) return false;
     var date = currentDate();
     var all = load();
-    return !!(all[date] && all[date][name]);
+    var key = comboKey(name, subjectOf(cell));
+    return !!(all[date] && all[date][key]);
   }
   function toggle(cell){
     var name = nameOf(cell);
@@ -3385,10 +3406,11 @@ document.addEventListener("DOMContentLoaded", init);
     if (!date) return;
     var all = load();
     if (!all[date]) all[date] = {};
-    if (all[date][name]){
-      delete all[date][name];
+    var key = comboKey(name, subjectOf(cell));
+    if (all[date][key]){
+      delete all[date][key];
     } else {
-      all[date][name] = 1;
+      all[date][key] = 1;
     }
     save(all);
   }
@@ -3432,7 +3454,6 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else { try { boot(); } catch(e){} }
 })();
-
 /* ==========================================================
    「1対1」の隣に「体験授業」ボタンを追加する。
    eWebからは取り込めない完全手打ちの項目。
