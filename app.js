@@ -3026,6 +3026,15 @@ document.addEventListener("DOMContentLoaded", init);
    席番号欄にだけイベントを付け直す（安定して動く仕組みに合わせる）。
    ========================================================== */
 (function(){
+  var SYNC_KEY = "seat-table-sync-enabled";
+  function syncEnabled(){
+    var v = null;
+    try { v = localStorage.getItem(SYNC_KEY); } catch(e){}
+    return v === null ? true : v === "1";
+  }
+  function setSyncEnabled(on){
+    try { localStorage.setItem(SYNC_KEY, on ? "1" : "0"); } catch(e){}
+  }
   function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
   function toHalfWidth(s){
     return String(s || "").replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
@@ -3049,6 +3058,7 @@ document.addEventListener("DOMContentLoaded", init);
     return o ? norm(o.text) : "";
   }
   function applySync(inputEl){
+    if (!syncEnabled()) return;
     var row = inputEl.closest(".seat-row-wrap");
     if (!row) return;
     var teacher = teacherOfRow(row);
@@ -3070,7 +3080,6 @@ document.addEventListener("DOMContentLoaded", init);
         }
       }
     }
-    /* 番号を反映したその場で、日全体を席番号順に自動で並べ替える */
     for (i = 0; i < blocks.length; i++){
       if (blocks[i].seats && blocks[i].seats.length){
         blocks[i].seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
@@ -3090,11 +3099,31 @@ document.addEventListener("DOMContentLoaded", init);
       inp.addEventListener("blur", function(ev){ applySync(ev.target); });
     }
   }
+  function injectToggle(){
+    var bars = document.querySelectorAll("#view-seat .btn-row"), i;
+    for (i = 0; i < bars.length; i++){
+      var bar = bars[i];
+      if (bar.querySelector(".js-sync-toggle-wrap")) continue;
+      var wrap = document.createElement("label");
+      wrap.className = "js-sync-toggle-wrap";
+      wrap.style.cssText = "display:inline-flex;align-items:center;gap:4px;font-size:13px;margin-left:4px;cursor:pointer;";
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "js-sync-toggle";
+      cb.checked = syncEnabled();
+      cb.addEventListener("change", function(ev){ setSyncEnabled(ev.target.checked); });
+      var span = document.createElement("span");
+      span.textContent = "番号の自動反映・並べ替え";
+      wrap.appendChild(cb);
+      wrap.appendChild(span);
+      bar.appendChild(wrap);
+    }
+  }
   function boot(){
-    try { bind(); } catch(e){}
+    try { bind(); injectToggle(); } catch(e){}
     var target = document.querySelector("#view-seat") || document.body;
     try {
-      var obs = new MutationObserver(function(){ try { bind(); } catch(e){} });
+      var obs = new MutationObserver(function(){ try { bind(); injectToggle(); } catch(e){} });
       obs.observe(target, { childList: true, subtree: true });
     } catch(e){}
   }
