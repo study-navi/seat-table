@@ -1,3 +1,12 @@
+/* ==========================================================
+   複数教室に展開するための仕組み。
+   新しい教室のページは、このapp.js/style.cssを直接読み込みつつ、
+   自分のindex.html側で window.__seatStorageOverride 等を
+   先に定義しておくことで、保存先や合言葉の区別を上書きできる。
+   何も上書きしなければ、これまで通りの動作（柊山校・共和校）。
+   ========================================================== */
+var STORAGE = window.__seatStorageOverride || window.localStorage;
+var SESSION_STORAGE = window.__seatSessionStorageOverride || window.sessionStorage;
 /* =========================================================
 座席表アプリ本体
 - localStorage キー "seat-table-v1" は旧サイトと同じ構造を維持
@@ -42,7 +51,7 @@ function uid(){ return Math.random().toString(36).slice(2,9); }
 /* ---------------- persistence ---------------- */
 function loadState(){
 let raw = null;
-try{ raw = localStorage.getItem(STORAGE_KEY); }catch(e){}
+try{ raw = STORAGE.getItem(STORAGE_KEY); }catch(e){}
 let data;
 try{ data = raw ? JSON.parse(raw) : null; }catch(e){ data = null; }
 data = migrate(data || {});
@@ -125,7 +134,7 @@ let saveTimer = null;
 function saveState(){
 setSaveIndicator("saving");
 try{
-localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+STORAGE.setItem(STORAGE_KEY, JSON.stringify(state));
 clearTimeout(saveTimer);
 saveTimer = setTimeout(()=> setSaveIndicator("ok"), 250);
 }catch(e){
@@ -1537,7 +1546,7 @@ document.addEventListener("DOMContentLoaded", init);
   var KEY = "seat-table-print-scale";
   var MIN = 60, MAX = 180;
   function read(){
-    var v = parseFloat(localStorage.getItem(KEY));
+    var v = parseFloat(STORAGE.getItem(KEY));
     if (!isFinite(v) || v < MIN/100 || v > MAX/100) return 1;
     return v;
   }
@@ -1565,7 +1574,7 @@ document.addEventListener("DOMContentLoaded", init);
     lab.textContent = text(v);
     input.addEventListener("input", function(){
       var nv = parseInt(input.value, 10) / 100;
-      try { localStorage.setItem(KEY, String(nv)); } catch(e){}
+      try { STORAGE.setItem(KEY, String(nv)); } catch(e){}
       apply(nv);
       lab.textContent = text(nv);
     });
@@ -1593,7 +1602,7 @@ document.addEventListener("DOMContentLoaded", init);
   function q(s){ return document.querySelector(s); }
 
   function readRow(){
-    var v = parseFloat(localStorage.getItem(ROWKEY));
+    var v = parseFloat(STORAGE.getItem(ROWKEY));
     if (!isFinite(v) || v < 0 || v > MAXMM) return 0;
     return v;
   }
@@ -1604,8 +1613,8 @@ document.addEventListener("DOMContentLoaded", init);
 
   function readFit(){
     /* 編集モードでは画面フィットの縮小をかけない */
-    if (localStorage.getItem("seat-table-print-look") === "0") return false;
-    return localStorage.getItem(FITKEY) !== "0";
+    if (STORAGE.getItem("seat-table-print-look") === "0") return false;
+    return STORAGE.getItem(FITKEY) !== "0";
   }
   function applyFit(){
     if (window.__suspendPreviewFit) return;
@@ -1662,7 +1671,7 @@ document.addEventListener("DOMContentLoaded", init);
     lab.textContent = rowText(v);
     input.addEventListener("input", function(){
       var nv = parseInt(input.value, 10);
-      try { localStorage.setItem(ROWKEY, String(nv)); } catch(e){}
+      try { STORAGE.setItem(ROWKEY, String(nv)); } catch(e){}
       applyRow(nv);
       lab.textContent = rowText(nv);
       scheduleFit();
@@ -1683,7 +1692,7 @@ document.addEventListener("DOMContentLoaded", init);
     cb.style.width = "18px";
     cb.style.height = "18px";
     cb.addEventListener("change", function(){
-      try { localStorage.setItem(FITKEY, cb.checked ? "1" : "0"); } catch(e){}
+      try { STORAGE.setItem(FITKEY, cb.checked ? "1" : "0"); } catch(e){}
       applyFit();
     });
     fitRow.appendChild(fitLab);
@@ -1808,8 +1817,8 @@ document.addEventListener("DOMContentLoaded", init);
 (function(){
   var KEY = "seat-table-group-times";
   function digits(s){ return String(s || "").replace(/[^0-9]/g, ""); }
-  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
-  function save(o){ try { localStorage.setItem(KEY, JSON.stringify(o)); } catch(e){} }
+  function load(){ try { return JSON.parse(STORAGE.getItem(KEY)) || {}; } catch(e){ return {}; } }
+  function save(o){ try { STORAGE.setItem(KEY, JSON.stringify(o)); } catch(e){} }
   function absorb(text){
     var p = null;
     try { p = JSON.parse(text); } catch(e){ return false; }
@@ -1951,7 +1960,7 @@ document.addEventListener("DOMContentLoaded", init);
    ========================================================== */
 (function(){
   var KEY = "seat-table-print-panel-open";
-  function isOpen(){ return localStorage.getItem(KEY) === "1"; }
+  function isOpen(){ return STORAGE.getItem(KEY) === "1"; }
   function apply(panel, open){
     var kids = panel.children, i;
     for (i = 0; i < kids.length; i++){
@@ -1975,7 +1984,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
     btn.addEventListener("click", function(){
       var next = !isOpen();
-      try { localStorage.setItem(KEY, next ? "1" : "0"); } catch(e){}
+      try { STORAGE.setItem(KEY, next ? "1" : "0"); } catch(e){}
       apply(panel, next);
       label();
     });
@@ -1996,7 +2005,7 @@ document.addEventListener("DOMContentLoaded", init);
    ========================================================== */
 (function(){
   var KEY = "seat-table-print-look";
-  function isOn(){ return localStorage.getItem(KEY) !== "0"; }
+  function isOn(){ return STORAGE.getItem(KEY) !== "0"; }
   function apply(){
     var st = document.getElementById("preview-mirror-print");
     if (st) st.disabled = !isOn();
@@ -2020,7 +2029,7 @@ document.addEventListener("DOMContentLoaded", init);
     cb.id = "printLookToggle";
     cb.checked = isOn();
     cb.addEventListener("change", function(){
-      try { localStorage.setItem(KEY, cb.checked ? "1" : "0"); } catch(e){}
+      try { STORAGE.setItem(KEY, cb.checked ? "1" : "0"); } catch(e){}
       apply();
     });
     lab.appendChild(cb);
@@ -2105,7 +2114,7 @@ document.addEventListener("DOMContentLoaded", init);
   }
   function build(text){
     var s = null;
-    try { s = JSON.parse(localStorage.getItem(KEY)); } catch(e){ return null; }
+    try { s = JSON.parse(STORAGE.getItem(KEY)); } catch(e){ return null; }
     if (!s || !s.students) return null;
     var idx = {}, i;
     for (i = 0; i < s.students.length; i++) idx[norm(s.students[i].name)] = i;
@@ -2162,7 +2171,7 @@ document.addEventListener("DOMContentLoaded", init);
       if (!r || !r.plan.length) return;
       var i;
       for (i = 0; i < r.plan.length; i++) r.state.students[r.plan[i].i].birthdate = r.plan[i].iso;
-      try { localStorage.setItem(KEY, JSON.stringify(r.state)); } catch(e){ msg.textContent = "保存に失敗しました。"; return; }
+      try { STORAGE.setItem(KEY, JSON.stringify(r.state)); } catch(e){ msg.textContent = "保存に失敗しました。"; return; }
       location.reload();
     });
     row.appendChild(checkBtn); row.appendChild(applyBtn);
@@ -2183,7 +2192,7 @@ document.addEventListener("DOMContentLoaded", init);
    ========================================================== */
 (function(){
   var KEY = "seat-table-v1";
-  function state(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch(e){ return null; } }
+  function state(){ try { return JSON.parse(STORAGE.getItem(KEY)); } catch(e){ return null; } }
   function schoolYear(d){ return (d.getMonth() + 1 >= 4) ? d.getFullYear() : d.getFullYear() - 1; }
   function gradeOf(iso, today){
     var m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(iso || ""));
@@ -2225,7 +2234,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
     var msg = "学年を更新: " + upd + "件\n変更なし: " + same + "件\n生年月日なし: " + noBd + "件\n小1〜高3の範囲外: " + outOfRange + "件\n\n保存してページを再読み込みします。";
     if (!window.confirm(msg)) return;
-    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
+    try { STORAGE.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
     location.reload();
   }
   function gradeRank(g){
@@ -2262,7 +2271,7 @@ document.addEventListener("DOMContentLoaded", init);
       var r = cmpKey(a, b, key);
       return (dir === "desc") ? -r : r;
     });
-    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
+    try { STORAGE.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
     location.reload();
   }
   function sortByBirthdate(){
@@ -2279,7 +2288,7 @@ document.addEventListener("DOMContentLoaded", init);
       if (!y) return -1;
       return x < y ? -1 : (x > y ? 1 : 0);
     });
-    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
+    try { STORAGE.setItem(KEY, JSON.stringify(s)); } catch(e){ return; }
     location.reload();
   }
   function inject(){
@@ -2326,14 +2335,14 @@ document.addEventListener("DOMContentLoaded", init);
     var btns = document.querySelectorAll(".tab-btn"), i;
     for (i = 0; i < btns.length; i++){
       if (/(^|\s)active(\s|$)/.test(btns[i].className)){
-        try { sessionStorage.setItem(KEY, String(i)); } catch(e){}
+        try { SESSION_STORAGE.setItem(KEY, String(i)); } catch(e){}
         return;
       }
     }
   }
   function restore(){
     var want = null;
-    try { want = sessionStorage.getItem(KEY); } catch(e){ return; }
+    try { want = SESSION_STORAGE.getItem(KEY); } catch(e){ return; }
     var i = parseInt(want, 10);
     if (!isFinite(i) || i < 0) return;
     var btns = document.querySelectorAll(".tab-btn");
@@ -2359,7 +2368,7 @@ document.addEventListener("DOMContentLoaded", init);
 (function(){
   var KEY = "seat-table-paper";
   var SID = "paper-orientation-style";
-  function get(){ return localStorage.getItem(KEY) === "portrait" ? "portrait" : "landscape"; }
+  function get(){ return STORAGE.getItem(KEY) === "portrait" ? "portrait" : "landscape"; }
   function apply(){
     var v = get();
     document.documentElement.setAttribute("data-paper", v);
@@ -2389,7 +2398,7 @@ document.addEventListener("DOMContentLoaded", init);
     });
     sel.value = get();
     sel.addEventListener("change", function(){
-      try { localStorage.setItem(KEY, sel.value); } catch(e){}
+      try { STORAGE.setItem(KEY, sel.value); } catch(e){}
       apply();
     });
     lab.appendChild(sel);
@@ -2426,26 +2435,26 @@ document.addEventListener("DOMContentLoaded", init);
     return c.getBoundingClientRect().height / ph;
   }
   function curRow(){
-    var v = parseFloat(localStorage.getItem(ROW_KEY));
+    var v = parseFloat(STORAGE.getItem(ROW_KEY));
     return isFinite(v) && v >= 0 ? v : 0;
   }
   function readState(){
-    var s = JSON.parse(localStorage.getItem("seat-table-v1") || "null");
+    var s = JSON.parse(STORAGE.getItem("seat-table-v1") || "null");
     var subj = s && s.printSettings ? s.printSettings.subjectSize : 15;
     var stu = s && s.printSettings ? s.printSettings.studentSize : 10.5;
-    var scale = parseFloat(localStorage.getItem(SCALE_KEY));
+    var scale = parseFloat(STORAGE.getItem(SCALE_KEY));
     if (!isFinite(scale)) scale = 1;
     return { row: curRow(), subj: subj, stu: stu, scale: scale };
   }
   function writeState(st){
     try {
-      localStorage.setItem(ROW_KEY, String(st.row));
-      localStorage.setItem(SCALE_KEY, String(st.scale));
-      var s = JSON.parse(localStorage.getItem("seat-table-v1"));
+      STORAGE.setItem(ROW_KEY, String(st.row));
+      STORAGE.setItem(SCALE_KEY, String(st.scale));
+      var s = JSON.parse(STORAGE.getItem("seat-table-v1"));
       if (s && s.printSettings){
         s.printSettings.subjectSize = st.subj;
         s.printSettings.studentSize = st.stu;
-        localStorage.setItem("seat-table-v1", JSON.stringify(s));
+        STORAGE.setItem("seat-table-v1", JSON.stringify(s));
       }
     } catch(e){}
   }
@@ -2498,7 +2507,7 @@ document.addEventListener("DOMContentLoaded", init);
       return;
     }
     /* 保存する前の状態を「元に戻す」用に控えておく */
-    try { localStorage.setItem(UNDO_KEY, JSON.stringify(before)); } catch(e){}
+    try { STORAGE.setItem(UNDO_KEY, JSON.stringify(before)); } catch(e){}
     var sc = document.getElementById("printPageScale");
     if (sc){ sc.value = String(pct); sc.dispatchEvent(new Event("input", { bubbles: true })); }
     var rw = document.getElementById("printRowH");
@@ -2511,10 +2520,10 @@ document.addEventListener("DOMContentLoaded", init);
   function updateUndoButton(){
     var b = undoBtn();
     if (!b) return;
-    b.style.display = localStorage.getItem(UNDO_KEY) ? "" : "none";
+    b.style.display = STORAGE.getItem(UNDO_KEY) ? "" : "none";
   }
   function doUndo(){
-    var raw = localStorage.getItem(UNDO_KEY);
+    var raw = STORAGE.getItem(UNDO_KEY);
     if (!raw) return;
     var st = null;
     try { st = JSON.parse(raw); } catch(e){}
@@ -2525,7 +2534,7 @@ document.addEventListener("DOMContentLoaded", init);
     if (sc){ sc.value = String(Math.round(st.scale * 100)); sc.dispatchEvent(new Event("input", { bubbles: true })); }
     var rw = document.getElementById("printRowH");
     if (rw){ rw.value = String(st.row); rw.dispatchEvent(new Event("input", { bubbles: true })); }
-    try { localStorage.removeItem(UNDO_KEY); } catch(e){}
+    try { STORAGE.removeItem(UNDO_KEY); } catch(e){}
     updateUndoButton();
     window.dispatchEvent(new Event("resize"));
   }
@@ -2563,7 +2572,7 @@ document.addEventListener("DOMContentLoaded", init);
   var KEY = "seat-table-substitutes";
   function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
   function digits(s){ return String(s || "").replace(/[^0-9]/g, ""); }
-  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+  function load(){ try { return JSON.parse(STORAGE.getItem(KEY)) || {}; } catch(e){ return {}; } }
   function absorb(text){
     var p = null;
     try { p = JSON.parse(text); } catch(e){ return false; }
@@ -2590,7 +2599,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
     var all = load();
     all[p.date] = map;
-    try { localStorage.setItem(KEY, JSON.stringify(all)); } catch(e){}
+    try { STORAGE.setItem(KEY, JSON.stringify(all)); } catch(e){}
     return n > 0;
   }
   function watch(){
@@ -2654,7 +2663,7 @@ document.addEventListener("DOMContentLoaded", init);
 (function(){
   var KEY = "seat-table-solo";
   function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
-  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+  function load(){ try { return JSON.parse(STORAGE.getItem(KEY)) || {}; } catch(e){ return {}; } }
   function isSolo(subj){ return /[<\uFF1C][^>\uFF1E]*[>\uFF1E]/.test(String(subj || "")); }
   function stripBrackets(subj){ return String(subj || "").replace(/[<\uFF1C][^>\uFF1E]*[>\uFF1E]/g, "").trim(); }
   function comboKey(name, subj){ return norm(name) + "\u2016" + norm(stripBrackets(subj)); }
@@ -2673,7 +2682,7 @@ document.addEventListener("DOMContentLoaded", init);
     }
     var all = load();
     all[p.date] = map;
-    try { localStorage.setItem(KEY, JSON.stringify(all)); } catch(e){}
+    try { STORAGE.setItem(KEY, JSON.stringify(all)); } catch(e){}
     return n > 0;
   }
   function watch(){
@@ -2771,7 +2780,7 @@ document.addEventListener("DOMContentLoaded", init);
     var date = currentDate();
     if (!date) return;
     var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")); } catch(e){ return; }
     if (!raw || !raw.days || !raw.days[date]) return;
     var day = raw.days[date];
     var blocks = day.blocks || day;
@@ -2780,8 +2789,8 @@ document.addEventListener("DOMContentLoaded", init);
     var msg = "この枠の座席を、手入力した席番号の順に並べ替えます。\n" + block.seats.length + "件を対象にします。\nよろしいですか？";
     if (!window.confirm(msg)) return;
     block.seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
-    try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
-    try { sessionStorage.setItem("seat-table-restore-date", date); } catch(e){}
+    try { STORAGE.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
+    try { SESSION_STORAGE.setItem("seat-table-restore-date", date); } catch(e){}
     location.reload();
   }
   function inject(){
@@ -2821,7 +2830,7 @@ document.addEventListener("DOMContentLoaded", init);
   var KEY = "seat-table-restore-date";
   function restore(){
     var date = null;
-    try { date = sessionStorage.getItem(KEY); } catch(e){ return; }
+    try { date = SESSION_STORAGE.getItem(KEY); } catch(e){ return; }
     if (!date) return;
     var inp = document.querySelector("#view-seat input[type=\"date\"]");
     if (!inp) return;
@@ -2829,7 +2838,7 @@ document.addEventListener("DOMContentLoaded", init);
     inp.value = date;
     inp.dispatchEvent(new Event("change", { bubbles: true }));
   }
-  function cleanup(){ try { sessionStorage.removeItem(KEY); } catch(e){} }
+  function cleanup(){ try { SESSION_STORAGE.removeItem(KEY); } catch(e){} }
   function boot(){
     try { restore(); } catch(e){}
     /* 他の初期化処理が後から「今日」の日付で上書きしてくることがあるため、
@@ -2930,7 +2939,7 @@ document.addEventListener("DOMContentLoaded", init);
     var date = currentDate();
     if (!date) return;
     var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")); } catch(e){ return; }
     if (!raw || !raw.days || !raw.days[date]){ window.alert("この日にはデータがありません。"); return; }
     var day = raw.days[date];
     var blocks = day.blocks || day;
@@ -2980,11 +2989,11 @@ document.addEventListener("DOMContentLoaded", init);
   }
   function applyImportDay(date, blocks){
     var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")) || { days: {} }; } catch(e){ raw = { days: {} }; }
+    try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")) || { days: {} }; } catch(e){ raw = { days: {} }; }
     if (!raw.days) raw.days = {};
     ensureRoster(raw, blocks);
     raw.days[date] = { blocks: blocks };
-    try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return false; }
+    try { STORAGE.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return false; }
     return true;
   }
   function checkImportOnLoad(){
@@ -3037,11 +3046,11 @@ document.addEventListener("DOMContentLoaded", init);
   var SYNC_KEY = "seat-table-sync-enabled";
   function syncEnabled(){
     var v = null;
-    try { v = localStorage.getItem(SYNC_KEY); } catch(e){}
+    try { v = STORAGE.getItem(SYNC_KEY); } catch(e){}
     return v === null ? true : v === "1";
   }
   function setSyncEnabled(on){
-    try { localStorage.setItem(SYNC_KEY, on ? "1" : "0"); } catch(e){}
+    try { STORAGE.setItem(SYNC_KEY, on ? "1" : "0"); } catch(e){}
   }
   function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
   function toHalfWidth(s){
@@ -3075,7 +3084,7 @@ document.addEventListener("DOMContentLoaded", init);
     var date = currentDate();
     if (!date) return;
     var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")); } catch(e){ return; }
     if (!raw || !raw.days || !raw.days[date]) return;
     var day = raw.days[date];
     var blocks = day.blocks || day;
@@ -3093,8 +3102,8 @@ document.addEventListener("DOMContentLoaded", init);
         blocks[i].seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
       }
     }
-    try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
-    try { sessionStorage.setItem("seat-table-restore-date", date); } catch(e){}
+    try { STORAGE.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
+    try { SESSION_STORAGE.setItem("seat-table-restore-date", date); } catch(e){}
     location.reload();
   }
   function bind(){
@@ -3151,7 +3160,7 @@ document.addEventListener("DOMContentLoaded", init);
   /* 校舎ごとに合言葉のキーを分ける。他校の座席表アプリと同じ
      Supabaseの表を使い回しているため、そのままだと偶然同じ
      合言葉を使うと別の校舎のデータとぶつかる可能性がある。 */
-  var CODE_PREFIX = "hiiragiyama:";
+  var CODE_PREFIX = window.__seatCodePrefix || "hiiragiyama:";
   function sideOut(x){ return x ? [x.subject || "", x.grade || "", x.student || "", x.status || ""] : ["", "", "", ""]; }
   function sideIn(a){ return { subject: a[0] || "", grade: a[1] || "", student: a[2] || "", status: a[3] || "" }; }
   function compactSeats(seats){
@@ -3210,11 +3219,11 @@ document.addEventListener("DOMContentLoaded", init);
   }
   function applyImportDay(date, blocks){
     var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")) || { days: {} }; } catch(e){ raw = { days: {} }; }
+    try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")) || { days: {} }; } catch(e){ raw = { days: {} }; }
     if (!raw.days) raw.days = {};
     ensureRoster(raw, blocks);
     raw.days[date] = { blocks: blocks };
-    try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return false; }
+    try { STORAGE.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return false; }
     return true;
   }
   async function doSend(){
@@ -3225,7 +3234,7 @@ document.addEventListener("DOMContentLoaded", init);
     var date = currentDate();
     if (!date) return;
     var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")); } catch(e){ return; }
     if (!raw || !raw.days || !raw.days[date]){ window.alert("この日にはデータがありません。"); return; }
     var blocks = raw.days[date].blocks || raw.days[date];
     if (!blocks || !blocks.length){ window.alert("この日にはデータがありません。"); return; }
@@ -3313,7 +3322,7 @@ document.addEventListener("DOMContentLoaded", init);
     var date = currentDate();
     if (!date) return;
     var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return; }
+    try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")); } catch(e){ return; }
     if (!raw || !raw.days || !raw.days[date]){ window.alert("この日にはデータがありません。"); return; }
     var day = raw.days[date];
     var blocks = day.blocks || day;
@@ -3328,8 +3337,8 @@ document.addEventListener("DOMContentLoaded", init);
         blocks[i].seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
       }
     }
-    try { localStorage.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
-    try { sessionStorage.setItem("seat-table-restore-date", date); } catch(e){}
+    try { STORAGE.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
+    try { SESSION_STORAGE.setItem("seat-table-restore-date", date); } catch(e){}
     location.reload();
   }
   function inject(){
@@ -3367,8 +3376,8 @@ document.addEventListener("DOMContentLoaded", init);
 (function(){
   var KEY = "seat-table-solo";
   function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
-  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
-  function save(all){ try { localStorage.setItem(KEY, JSON.stringify(all)); } catch(e){} }
+  function load(){ try { return JSON.parse(STORAGE.getItem(KEY)) || {}; } catch(e){ return {}; } }
+  function save(all){ try { STORAGE.setItem(KEY, JSON.stringify(all)); } catch(e){} }
   function currentDate(){
     var inp = document.querySelector("#view-seat input[type=\"date\"]");
     return inp ? inp.value : "";
@@ -3492,7 +3501,7 @@ document.addEventListener("DOMContentLoaded", init);
     var date = currentDate();
     if (!date) return null;
     var raw = null;
-    try { raw = JSON.parse(localStorage.getItem("seat-table-v1")); } catch(e){ return null; }
+    try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")); } catch(e){ return null; }
     if (!raw || !raw.days || !raw.days[date]) return null;
     var blocks = raw.days[date].blocks || raw.days[date];
     var block = blocks[loc.bIdx];
@@ -3513,7 +3522,7 @@ document.addEventListener("DOMContentLoaded", init);
     var found = getTrialSeatSide(loc);
     if (!found){ window.alert("先に生徒を選択してください。"); return; }
     found.seat[found.side].trial = !found.seat[found.side].trial;
-    try { localStorage.setItem("seat-table-v1", JSON.stringify(found.raw)); } catch(e){}
+    try { STORAGE.setItem("seat-table-v1", JSON.stringify(found.raw)); } catch(e){}
   }
   function updateTrialUI(btn, cell){
     var active = trialIsActive(cell);
