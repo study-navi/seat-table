@@ -345,6 +345,8 @@ ${imagesHtml()}
 <span><span class="swatch course"></span>講習</span>
 <span><span class="swatch transfer"></span>振替</span>
 <span><span class="swatch absent"></span>欠席</span>
+<span><span class="swatch solo"></span>1対1</span>
+<span><span class="swatch trial"></span>体験授業</span>
 <span>生徒名の下のボタンでワンタップ切り替え</span>
 </div>
 
@@ -422,6 +424,32 @@ wrap.innerHTML = day.blocks.map((block, bi)=> blockHtml(block, bi)).join("");
 day.blocks.forEach((block, bi)=> bindBlockEvents(day, block, bi));
 }
 
+function uniqueBlockTeachers(block){
+const names = [];
+const seen = {};
+function add(raw){
+const display = String(raw || "").replace(/[\s\u3000]+/g, " ").trim();
+if(!display) return;
+if(seen[display]) return;
+seen[display] = true;
+names.push(display);
+}
+(block.seats || []).forEach(seat=> add(seat && seat.teacher));
+(block.groupRows || []).forEach(row=> add(row && row.teacher));
+return names;
+}
+
+function blockTeachersLabel(block){
+const names = uniqueBlockTeachers(block);
+return names.length ? names.join(" / ") : "講師未設定";
+}
+
+function refreshBlockTeachersHeading(blockEl, block){
+const el = blockEl && blockEl.querySelector(".block-teachers");
+if(!el) return;
+el.textContent = blockTeachersLabel(block);
+}
+
 function blockHtml(block, bi){
 const seatRows = block.seats.map((seat,si)=> seatRowHtml(block, seat, si)).join("");
 const groupRows = block.groupRows.map((g,gi)=> groupRowHtml(block, g, gi)).join("");
@@ -431,6 +459,7 @@ return `
 <div class="block-head">
 <div class="block-head-left">
 <span class="block-index">枠${bi+1}</span>
+<div class="block-teachers">${escapeHtml(blockTeachersLabel(block))}</div>
 <div class="time-input">
 <span>時間帯</span>
 <input type="time" class="js-time-start" value="${(block.time.split("〜")[0]||"").trim()}">
@@ -623,7 +652,11 @@ return;
 }
 if(t.classList.contains("js-teacher")){
 const idx = seatRowIndex(t);
-if(idx>-1){ block.seats[idx].teacher = t.value; saveState(); }
+if(idx>-1){
+block.seats[idx].teacher = t.value;
+saveState();
+refreshBlockTeachersHeading(t.closest(".lesson-block"), block);
+}
 return;
 }
 if(t.classList.contains("js-subject")){
@@ -646,7 +679,11 @@ return;
 }
 if(t.classList.contains("js-g-teacher")){
 const idx = groupRowIndex(t);
-if(idx>-1){ block.groupRows[idx].teacher = t.value; saveState(); }
+if(idx>-1){
+block.groupRows[idx].teacher = t.value;
+saveState();
+refreshBlockTeachersHeading(t.closest(".lesson-block"), block);
+}
 return;
 }
 if(t.classList.contains("js-g-name")){
