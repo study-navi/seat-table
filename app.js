@@ -3128,7 +3128,26 @@ document.addEventListener("DOMContentLoaded", init);
       cb.type = "checkbox";
       cb.className = "js-sync-toggle";
       cb.checked = syncEnabled();
-      cb.addEventListener("change", function(ev){ setSyncEnabled(ev.target.checked); });
+      cb.addEventListener("change", function(ev){
+          setSyncEnabled(ev.target.checked);
+          if (ev.target.checked){
+            var date = currentDate();
+            if (!date) return;
+            var raw = null;
+            try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")); } catch(e){ return; }
+            if (!raw || !raw.days || !raw.days[date]) return;
+            var blocks = raw.days[date].blocks || raw.days[date];
+            var i;
+            for (i = 0; i < blocks.length; i++){
+              if (blocks[i].seats && blocks[i].seats.length){
+                blocks[i].seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
+              }
+            }
+            try { STORAGE.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
+            try { SESSION_STORAGE.setItem("seat-table-restore-date", date); } catch(e){}
+            location.reload();
+          }
+        });
       var span = document.createElement("span");
       span.textContent = "番号の自動反映・並べ替え";
       wrap.appendChild(cb);
