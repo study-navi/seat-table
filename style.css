@@ -305,6 +305,209 @@ main{ padding: 10px; }
 .weekday-chip{ min-width:44px; padding:5px 6px; }
 }
 
+/* ---------- Seat view layout (screen only; print / preview rules stay untouched) ---------- */
+@media screen{
+#view-seat{
+--control-h: 36px;
+background: #fff;
+}
+#view-seat .page-head{
+background: #fff;
+border-color: var(--line);
+padding: 14px 16px 12px;
+}
+#view-seat .seat-date-bar{
+display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px;
+margin-bottom: 12px;
+}
+#view-seat .seat-date-bar h2{
+margin:0; font-size:1.25em; font-weight:700; line-height:1.3;
+}
+#view-seat .seat-date-bar .date-field{
+display:flex; align-items:center; gap:8px;
+font-size:0.9em; color: var(--ink-soft); font-weight:600;
+}
+#view-seat .seat-date-bar input[type=date]{
+height: var(--control-h);
+padding: 0 10px;
+border:1px solid var(--line);
+border-radius:6px;
+background:#fff;
+font-size:0.95em;
+color: var(--ink);
+}
+#view-seat .seat-toolbar{
+display:flex; flex-direction:column; gap:0;
+align-items:stretch; margin-bottom:0;
+}
+#view-seat .toolbar-group{
+display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px;
+padding: 10px 0;
+border-top: 1px solid var(--line-soft);
+}
+#view-seat .toolbar-group:first-child{ border-top:none; padding-top:0; }
+#view-seat .toolbar-label{
+font-size:0.75em; font-weight:700; color: var(--ink-soft);
+letter-spacing:0.04em; min-width:4.8em; flex-shrink:0;
+}
+#view-seat .btn{
+height: var(--control-h);
+padding: 0 12px;
+display:inline-flex; align-items:center; justify-content:center;
+font-size:0.9em;
+}
+#view-seat .js-sync-toggle-wrap{
+display:inline-flex !important; align-items:center; gap:6px;
+height: var(--control-h); padding: 0 8px;
+border:1px solid var(--line); border-radius:6px; background:#fff;
+font-size:0.88em; color: var(--ink);
+}
+#view-seat .preset-panel{
+background: #f7f9fc;
+border-color: var(--line);
+}
+#view-seat .legend{ margin-top: 4px; }
+
+/* Lesson blocks */
+#view-seat .blocks{ gap: 28px; }
+#view-seat .lesson-block{
+background:#fff;
+border:1px solid var(--line);
+border-left: 4px solid var(--blue);
+border-radius: var(--radius);
+box-shadow: none;
+overflow:hidden;
+}
+#view-seat .block-head{
+background: #f3f6fb;
+border-bottom: 1px solid var(--line);
+padding: 14px 16px;
+gap: 12px;
+}
+#view-seat .block-index{
+font-size:0.92em; padding: 5px 12px;
+}
+#view-seat .time-input{
+font-size:0.95em; font-weight:600; color: var(--ink);
+}
+#view-seat .time-input input[type=time],
+#view-seat .time-choice select{
+height: var(--control-h);
+padding: 0 8px;
+border:1px solid var(--line);
+border-radius:6px;
+background:#fff;
+font-size:0.95em;
+}
+#view-seat .time-input input[type=time]{ width: 118px; }
+#view-seat .block-actions{ gap:8px; }
+
+/* Sheet: seat number first, then teacher; keep left/right pairing */
+#view-seat .sheet{ min-width: 920px; }
+#view-seat .sheet-header,
+#view-seat .seat-row-wrap,
+#view-seat .group-row-wrap{
+grid-template-columns: 72px 148px 96px 56px minmax(170px,1fr) 96px 56px minmax(170px,1fr);
+}
+#view-seat .cell{
+min-height: 56px;
+padding: 8px;
+}
+#view-seat .cell select,
+#view-seat .cell input{
+height: var(--control-h);
+padding: 0 8px;
+font-size: 0.95em;
+}
+#view-seat .seat-num-cell{
+background: #eef2f8;
+align-items: stretch;
+}
+#view-seat .seat-row-wrap.alt-row .seat-num-cell{ background: #e7edf6; }
+#view-seat .seat-num-cell input.js-seat-num,
+#view-seat .seat-num-cell input.js-g-seat-num{
+font-size: 1.15em;
+font-weight: 700;
+font-variant-numeric: tabular-nums;
+text-align: center;
+letter-spacing: 0.02em;
+color: var(--ink);
+background: #fff;
+}
+#view-seat .teacher-col select{
+font-weight: 700;
+font-size: 1em;
+color: var(--blue-dark);
+}
+#view-seat .student-select{
+font-weight: 700;
+font-size: 1em;
+color: var(--ink);
+}
+#view-seat .subject-select{
+font-weight: 600;
+font-size: 0.95em;
+color: var(--ink);
+}
+#view-seat .grade-input{
+font-weight: 500;
+font-size: 0.82em;
+color: var(--ink-soft);
+text-align: center;
+}
+#view-seat .status-buttons{ gap: 4px; }
+#view-seat .status-buttons button{
+font-size: 0.78em;
+padding: 4px 8px;
+min-height: 28px;
+color: var(--ink-soft);
+}
+#view-seat .sheet-wrap{
+overflow-x: auto;
+-webkit-overflow-scrolling: touch;
+}
+
+/* Keep seat + teacher visible while the sheet scrolls sideways */
+#view-seat .sheet-header:not(.sub) > :nth-child(1),
+#view-seat .seat-row-wrap > :nth-child(1),
+#view-seat .group-row-wrap > :nth-child(1){
+position: sticky; left: 0; z-index: 2;
+}
+#view-seat .sheet-header:not(.sub) > :nth-child(2),
+#view-seat .seat-row-wrap > :nth-child(2),
+#view-seat .group-row-wrap > :nth-child(2){
+position: sticky; left: 72px; z-index: 2;
+}
+#view-seat .sheet-header.sub > .th.blank2{
+position: sticky; left: 0; z-index: 3;
+}
+#view-seat .sheet-header:not(.sub) > :nth-child(1),
+#view-seat .sheet-header:not(.sub) > :nth-child(2),
+#view-seat .sheet-header.sub > .th.blank2{ background: #eef1f7; }
+#view-seat .seat-row-wrap > :nth-child(2){ background: #fff; }
+#view-seat .seat-row-wrap.alt-row > :nth-child(2){ background: var(--row-alt); }
+#view-seat .group-row-wrap > :nth-child(1),
+#view-seat .group-row-wrap > :nth-child(2){ background: #faf8ff; }
+}
+
+@media screen and (max-width: 860px){
+#view-seat{ --control-h: 40px; }
+#view-seat .page-head{ padding: 12px; }
+#view-seat .toolbar-group{
+flex-direction: column; align-items: stretch; gap: 6px;
+}
+#view-seat .toolbar-label{ min-width: 0; }
+#view-seat .btn-row{ width: 100%; }
+#view-seat .btn{ min-height: 40px; }
+#view-seat .block-head{ align-items: flex-start; }
+#view-seat .block-actions{ width: 100%; }
+}
+
+@media screen and (max-width: 480px){
+#view-seat .seat-date-bar h2{ font-size: 1.1em; }
+#view-seat .time-input{ flex-wrap: wrap; }
+}
+
 /* ---------- Print images (hidden on screen except inside preview, shown when printing) ---------- */
 .print-image{ display:none; }
 .image-list{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
@@ -455,7 +658,7 @@ grid-template-columns: 32px 90px 84px 40px minmax(0,1fr) 84px 40px minmax(0,1fr)
 @page{ size: A3 landscape; margin: 8mm; }
 html,body{ background:#fff; }
 body, main{ margin:0; padding:0; background:#fff; }
-.topbar, .tabs, .preset-panel, .legend, .seat-toolbar, .btn, .toast, .status-buttons, .remove-student, .seat-move, .row-order{
+.topbar, .tabs, .preset-panel, .legend, .seat-toolbar, .date-field, .btn, .toast, .status-buttons, .remove-student, .seat-move, .row-order{
 display:none !important;
 }
 .block-actions{ display:none !important; }
