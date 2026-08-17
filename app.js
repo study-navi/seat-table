@@ -599,7 +599,12 @@ function handleSeatFieldChange(e, block){
 const t = e.target;
 if(t.classList.contains("js-seat-num")){
 const idx = seatRowIndex(t);
-if(idx>-1){ block.seats[idx].seatNumber = t.value; saveState(); }
+if(idx>-1){
+block.seats[idx].seatNumber = t.value;
+const synced = syncSeatNumberAcrossBlocks(block, block.seats[idx].teacher, t.value);
+saveState();
+if(synced) renderSeatView();
+}
 return;
 }
 if(t.classList.contains("js-teacher")){
@@ -704,6 +709,40 @@ container carrying data-seat-index / data-group-index, so we just read it back. 
 function seatRowIndex(el){
 const wrap = el.closest("[data-seat-index]");
 return wrap ? Number(wrap.dataset.seatIndex) : -1;
+}
+
+function normTeacherName(s){
+return String(s || "").replace(/[\s\u3000]+/g, "");
+}
+
+function isSeatNumberSyncEnabled(){
+try{
+const v = STORAGE.getItem("seat-table-sync-enabled");
+return v === null ? true : v === "1";
+}catch(e){
+return true;
+}
+}
+
+/* 同じ日の他の授業枠にいる同じ講師へ席番号を反映する。
+   いま編集中の枠は本体側で既に更新済みなので対象外（二重処理しない）。 */
+function syncSeatNumberAcrossBlocks(sourceBlock, teacherName, newNumber){
+if(!isSeatNumberSyncEnabled()) return false;
+const teacher = normTeacherName(teacherName);
+if(!teacher) return false;
+const day = state && state.days ? state.days[currentDate] : null;
+if(!day || !Array.isArray(day.blocks)) return false;
+let changed = false;
+day.blocks.forEach(block=>{
+if(!block || block === sourceBlock || (sourceBlock && block.id && block.id === sourceBlock.id)) return;
+(block.seats || []).forEach(seat=>{
+if(normTeacherName(seat.teacher) !== teacher) return;
+if(String(seat.seatNumber ?? "") === String(newNumber ?? "")) return;
+seat.seatNumber = newNumber;
+changed = true;
+});
+});
+return changed;
 }
 function groupRowIndex(el){
 const wrap = el.closest("[data-group-index]");
@@ -3038,9 +3077,9 @@ document.addEventListener("DOMContentLoaded", init);
 })();
 
 /* ==========================================================
-   席番号の手入力を、同じ日の同じ先生の他の枠にも自動で反映する。
-   setIntervalには頼らず、MutationObserverで新しく現れた
-   席番号欄にだけイベントを付け直す（安定して動く仕組みに合わせる）。
+   席番号の自動反映チェックボックス。
+   実際の反映は handleSeatFieldChange → syncSeatNumberAcrossBlocks。
+   ここではツールバーへのチェックボックス追加だけを行う。
    ========================================================== */
 (function(){
   var SYNC_KEY = "seat-table-sync-enabled";
@@ -3052,70 +3091,6 @@ document.addEventListener("DOMContentLoaded", init);
   function setSyncEnabled(on){
     try { STORAGE.setItem(SYNC_KEY, on ? "1" : "0"); } catch(e){}
   }
-  function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
-  function toHalfWidth(s){
-    return String(s || "").replace(/[０-９]/g, function(ch){ return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0); });
-  }
-  function isNumLike(v){ return /^\s*-?\d+(\.\d+)?\s*$/.test(toHalfWidth(v)); }
-  function cmp(a, b){
-    var an = isNumLike(a), bn = isNumLike(b);
-    if (an && bn) return parseFloat(toHalfWidth(a)) - parseFloat(toHalfWidth(b));
-    if (an && !bn) return -1;
-    if (!an && bn) return 1;
-    return String(a || "").localeCompare(String(b || ""), "ja");
-  }
-  function currentDate(){
-    var inp = document.querySelector("#view-seat input[type=\"date\"]");
-    return inp ? inp.value : "";
-  }
-  function teacherOfRow(row){
-    var sel = row.querySelector(".teacher-col select");
-    if (!sel || !sel.value) return "";
-    var o = sel.options[sel.selectedIndex];
-    return o ? norm(o.text) : "";
-  }
-  function applySync(inputEl){
-    if (!syncEnabled()) return;
-    var row = inputEl.closest(".seat-row-wrap");
-    if (!row) return;
-    var teacher = teacherOfRow(row);
-    if (!teacher) return;
-    var newNum = inputEl.value;
-    var date = currentDate();
-    if (!date) return;
-    var raw = null;
-    try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")); } catch(e){ return; }
-    if (!raw || !raw.days || !raw.days[date]) return;
-    var day = raw.days[date];
-    var blocks = day.blocks || day;
-    var i, j;
-    for (i = 0; i < blocks.length; i++){
-      var seats = blocks[i].seats || [];
-      for (j = 0; j < seats.length; j++){
-        if (norm(seats[j].teacher) === teacher){
-          seats[j].seatNumber = newNum;
-        }
-      }
-    }
-    for (i = 0; i < blocks.length; i++){
-      if (blocks[i].seats && blocks[i].seats.length){
-        blocks[i].seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
-      }
-    }
-    try { STORAGE.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
-    try { SESSION_STORAGE.setItem("seat-table-restore-date", date); } catch(e){}
-    location.reload();
-  }
-  function bind(){
-    var inputs = document.querySelectorAll("#view-seat .js-seat-num"), i;
-    for (i = 0; i < inputs.length; i++){
-      var inp = inputs[i];
-      if (inp.getAttribute("data-teacher-sync-bound") === "1") continue;
-      inp.setAttribute("data-teacher-sync-bound", "1");
-      inp.addEventListener("change", function(ev){ applySync(ev.target); });
-      inp.addEventListener("blur", function(ev){ applySync(ev.target); });
-    }
-  }
   function injectToggle(){
     var bars = document.querySelectorAll("#view-seat .btn-row"), i;
     for (i = 0; i < bars.length; i++){
@@ -3126,28 +3101,13 @@ document.addEventListener("DOMContentLoaded", init);
       wrap.style.cssText = "display:inline-flex;align-items:center;gap:4px;font-size:13px;margin-left:4px;cursor:pointer;";
       var cb = document.createElement("input");
       cb.type = "checkbox";
+      cb.id = "seatNumberSyncToggle";
+      cb.name = "seatNumberSync";
       cb.className = "js-sync-toggle";
       cb.checked = syncEnabled();
       cb.addEventListener("change", function(ev){
-          setSyncEnabled(ev.target.checked);
-          if (ev.target.checked){
-            var date = currentDate();
-            if (!date) return;
-            var raw = null;
-            try { raw = JSON.parse(STORAGE.getItem("seat-table-v1")); } catch(e){ return; }
-            if (!raw || !raw.days || !raw.days[date]) return;
-            var blocks = raw.days[date].blocks || raw.days[date];
-            var i;
-            for (i = 0; i < blocks.length; i++){
-              if (blocks[i].seats && blocks[i].seats.length){
-                blocks[i].seats.sort(function(a, b){ return cmp(a.seatNumber, b.seatNumber); });
-              }
-            }
-            try { STORAGE.setItem("seat-table-v1", JSON.stringify(raw)); } catch(e){ return; }
-            try { SESSION_STORAGE.setItem("seat-table-restore-date", date); } catch(e){}
-            location.reload();
-          }
-        });
+        setSyncEnabled(ev.target.checked);
+      });
       var span = document.createElement("span");
       span.textContent = "番号の自動反映・並べ替え";
       wrap.appendChild(cb);
@@ -3156,10 +3116,10 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   function boot(){
-    try { bind(); injectToggle(); } catch(e){}
+    try { injectToggle(); } catch(e){}
     var target = document.querySelector("#view-seat") || document.body;
     try {
-      var obs = new MutationObserver(function(){ try { bind(); injectToggle(); } catch(e){} });
+      var obs = new MutationObserver(function(){ try { injectToggle(); } catch(e){} });
       obs.observe(target, { childList: true, subtree: true });
     } catch(e){}
   }
