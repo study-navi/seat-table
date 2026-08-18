@@ -461,9 +461,13 @@ const all = JSON.parse(STORAGE.getItem("seat-table-solo") || "{}") || {};
 return all[dateStr] || {};
 }catch(e){ return {}; }
 }
-/* 印刷・プレビュー用。背景画像は「背景のグラフィック」オフだと紙に出ないので、
-   実要素のSVG斜線をセルへ載せる。画面の座席表ではCSSで隠す。 */
-const SOLO_SLASH_MARK = `<svg class="solo-slash-mark" aria-hidden="true" focusable="false" preserveAspectRatio="none" viewBox="0 0 40 40"><line x1="0" y1="40" x2="40" y2="0" stroke="#000" stroke-width="4"/><line x1="-20" y1="40" x2="20" y2="0" stroke="#000" stroke-width="4"/><line x1="20" y1="40" x2="60" y2="0" stroke="#000" stroke-width="4"/></svg>`;
+/* 1対1の斜線。各セル内のSVG実要素として置く（背景グラフィックOFFでも印刷される）。
+   パターンIDはセルごとに一意にして、hiddenな別画面の同名IDに引っ張られないようにする。 */
+function soloSlashMarkHtml(){
+const id = "solo-slash-p-" + uid();
+const clip = id + "-clip";
+return `<svg class="solo-slash-mark" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" overflow="hidden"><defs><clipPath id="${clip}" clipPathUnits="objectBoundingBox"><rect width="1" height="1"/></clipPath><pattern id="${id}" patternUnits="userSpaceOnUse" width="18" height="18"><path d="M-2 20 L20 -2" stroke="#000" stroke-width="0.9" fill="none"/></pattern></defs><rect width="100%" height="100%" fill="url(#${id})" clip-path="url(#${clip})"/></svg>`;
+}
 
 function blockHtml(block, bi, dateStr){
 const seatRows = block.seats.map((seat,si)=> seatRowHtml(block, seat, si, dateStr)).join("");
@@ -536,11 +540,11 @@ const blockLeft = rightSolo && !leftName;
 const sideHtml = (side, key, blocked)=>`
 <div class="cell${blocked?" solo-blocked":""}">
 <input list="subjectList" class="subject-select js-subject" data-side="${key}" value="${escapeHtml(side.subject)}" placeholder="—">
-${blocked?SOLO_SLASH_MARK:""}
+${blocked?soloSlashMarkHtml():""}
 </div>
 <div class="cell${blocked?" solo-blocked":""}">
 <input type="text" class="grade-input js-grade" data-side="${key}" value="${escapeHtml(side.grade)}" placeholder="学年">
-${blocked?SOLO_SLASH_MARK:""}
+${blocked?soloSlashMarkHtml():""}
 </div>
 <div class="cell student-cell status-${side.status} js-student-cell${blocked?" solo-blocked":""}" data-side="${key}">
 <select class="student-select js-student" data-side="${key}">${studOpts(side.student)}</select>
@@ -549,7 +553,7 @@ ${blocked?SOLO_SLASH_MARK:""}
 <button type="button" class="js-status ${side.status==='transfer'?'active transfer':''}" data-side="${key}" data-status="transfer">振替</button>
 <button type="button" class="js-status ${side.status==='absent'?'active absent':''}" data-side="${key}" data-status="absent">欠席</button>
 </div>
-${blocked?SOLO_SLASH_MARK:""}
+${blocked?soloSlashMarkHtml():""}
 </div>`;
 
 return `
@@ -926,6 +930,46 @@ const kind = m[1], code = m[2];
 const subject = EWEB_SUBJECT_ABBR[code] || code;
 return {subject, status: kind === "講" ? "course" : "normal"};
 }
+/* 1対1は通＋山括弧のみ。通(数)は1対2、講(数)は講習、集団は groups 側。 */
+function isEwebSoloSubject(raw){
+const s = String(raw || "").trim();
+return /^通\s*[<\uFF1C][^>\uFF1E]+[>\uFF1E]$/.test(s);
+}
+function ewebItemSubject(it){
+if(!it) return "";
+if(it.subject) return it.subject;
+if(it.raw && it.raw.subject_name) return it.raw.subject_name;
+if(it.subject_name) return it.subject_name;
+return "";
+}
+function ewebSoloDisplaySubject(raw){
+const parsed = parseEwebSubject(raw);
+if(parsed.subject && parsed.subject !== String(raw || "").trim()) return parsed.subject;
+const m = String(raw || "").trim().match(/^通\s*[<\uFF1C]([^>\uFF1E]+)[>\uFF1E]$/);
+if(!m) return parsed.subject;
+return EWEB_SUBJECT_ABBR[m[1]] || m[1];
+}
+function soloMapFromEwebPayload(payload){
+const map = {};
+if(!payload) return map;
+const items = payload.items || payload.schedules || [];
+items.forEach(it=>{
+const rawSubj = ewebItemSubject(it);
+if(!isEwebSoloSubject(rawSubj)) return;
+const name = it.student_name || "";
+if(!name) return;
+map[soloComboKey(name, ewebSoloDisplaySubject(rawSubj))] = 1;
+});
+return map;
+}
+function saveEwebSoloMap(dateStr, map){
+if(!dateStr) return;
+try{
+const all = JSON.parse(STORAGE.getItem("seat-table-solo") || "{}") || {};
+all[dateStr] = map || {};
+STORAGE.setItem("seat-table-solo", JSON.stringify(all));
+}catch(e){}
+}
 function guessSubjectFromName(name){
 const s = name || "";
 for(const [abbr, full] of Object.entries(EWEB_SUBJECT_ABBR)){
@@ -1037,9 +1081,11 @@ confirmDialog(`${dateStr} の座席表を、eWebのデータで上書きしま�
 state.days[dateStr] = newDay;
 migrate(state);
 currentDate = dateStr;
+saveEwebSoloMap(dateStr, soloMapFromEwebPayload(payload));
 saveState();
 renderTabs();
 renderSeatView();
+if(window.__repaintSolo){ try{ window.__repaintSolo(); }catch(e){} }
 showToast(`${dateStr} の座席表をeWebから取り込みました`);
 });
 });
@@ -1523,8 +1569,9 @@ if(!allDates.length){
 showToast("印刷できる座席表データがありません", true);
 return;
 }
-const defaultStart = allDates[0];
-const defaultEnd = allDates[allDates.length-1];
+const displayed = currentDate;
+const defaultStart = displayed;
+const defaultEnd = displayed;
 openModal(`
 <h3>複数日を印刷</h3>
 <p>データがある日付だけを表示しています。空の日付は含まれません。1日につき1ページで、日付順に印刷します。</p>
@@ -2920,20 +2967,11 @@ document.addEventListener("DOMContentLoaded", init);
   function absorb(text){
     var p = null;
     try { p = JSON.parse(text); } catch(e){ return false; }
-    if (!p || !p.date || !p.items) return false;
-    var map = {}, n = 0, i;
-    for (i = 0; i < p.items.length; i++){
-      var it = p.items[i];
-      if (!it) continue;
-      var subj = it.subject || (it.raw && it.raw.subject_name) || "";
-      if (!isSolo(subj)) continue;
-      map[comboKey(it.student_name, subj)] = 1;
-      n++;
-    }
-    var all = load();
-    all[p.date] = map;
-    try { STORAGE.setItem(KEY, JSON.stringify(all)); } catch(e){}
-    return n > 0;
+    if(!p || !p.date) return false;
+    if(typeof soloMapFromEwebPayload !== "function" || typeof saveEwebSoloMap !== "function") return false;
+    var map = soloMapFromEwebPayload(p);
+    saveEwebSoloMap(p.date, map);
+    return Object.keys(map).length > 0;
   }
   function watch(){
     var tas = document.querySelectorAll("textarea"), i;
@@ -2969,22 +3007,23 @@ document.addEventListener("DOMContentLoaded", init);
     var inp = cell.querySelector(".js-subject");
     return inp ? inp.value : "";
   }
-  var SLASH_SVG = '<svg class="solo-slash-mark" aria-hidden="true" focusable="false" preserveAspectRatio="none" viewBox="0 0 40 40"><line x1="0" y1="40" x2="40" y2="0" stroke="#000" stroke-width="4"/><line x1="-20" y1="40" x2="20" y2="0" stroke="#000" stroke-width="4"/><line x1="20" y1="40" x2="60" y2="0" stroke="#000" stroke-width="4"/></svg>';
+  function slashSvg(){
+    return (typeof soloSlashMarkHtml === "function") ? soloSlashMarkHtml() : "";
+  }
   function setBlocked(cells, on){
     cells.forEach(function(c){
       if (!c) return;
       c.classList.toggle("solo-blocked", on);
       var mark = c.querySelector(".solo-slash-mark");
       if (on){
-        if (!mark) c.insertAdjacentHTML("beforeend", SLASH_SVG);
+        if (!mark) c.insertAdjacentHTML("beforeend", slashSvg());
       } else if (mark && mark.parentNode){
         mark.parentNode.removeChild(mark);
       }
     });
   }
-  /* 斜線は画面ではCSS背景、印刷・プレビューではSVG実要素でも描く。
-     判定は「生徒名＋科目」の組み合わせで行う。同じ生徒でも科目によって
-     1対1だったり1対2だったりするため、生徒名だけでは区別できないため。 */
+  /* 斜線は各セル内のSVG実要素。判定は「生徒名＋科目」の組み合わせ。
+     同じ生徒でも科目によって1対1だったり1対2だったりするため。 */
   function paint(){
     var views = document.querySelectorAll(".view, .print-preview-page"), vi, rows = [];
     for (vi = 0; vi < views.length; vi++){
