@@ -452,8 +452,21 @@ if(!el) return;
 el.textContent = blockTeachersLabel(block);
 }
 
-function blockHtml(block, bi){
-const seatRows = block.seats.map((seat,si)=> seatRowHtml(block, seat, si)).join("");
+function normSoloName(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
+function stripSoloBrackets(subj){ return String(subj || "").replace(/[<\uFF1C][^>\uFF1E]*[>\uFF1E]/g, "").trim(); }
+function soloComboKey(name, subj){ return normSoloName(name) + "\u2016" + normSoloName(stripSoloBrackets(subj)); }
+function loadSoloMapForDate(dateStr){
+try{
+const all = JSON.parse(STORAGE.getItem("seat-table-solo") || "{}") || {};
+return all[dateStr] || {};
+}catch(e){ return {}; }
+}
+/* 印刷・プレビュー用。背景画像は「背景のグラフィック」オフだと紙に出ないので、
+   実要素のSVG斜線をセルへ載せる。画面の座席表ではCSSで隠す。 */
+const SOLO_SLASH_MARK = `<svg class="solo-slash-mark" aria-hidden="true" focusable="false" preserveAspectRatio="none" viewBox="0 0 40 40"><line x1="0" y1="40" x2="40" y2="0" stroke="#000" stroke-width="4"/><line x1="-20" y1="40" x2="20" y2="0" stroke="#000" stroke-width="4"/><line x1="20" y1="40" x2="60" y2="0" stroke="#000" stroke-width="4"/></svg>`;
+
+function blockHtml(block, bi, dateStr){
+const seatRows = block.seats.map((seat,si)=> seatRowHtml(block, seat, si, dateStr)).join("");
 const groupRows = block.groupRows.map((g,gi)=> groupRowHtml(block, g, gi)).join("");
 
 return `
@@ -509,24 +522,34 @@ ${groupRows}
 </div>`;
 }
 
-function seatRowHtml(block, seat, si){
+function seatRowHtml(block, seat, si, dateStr){
 const teacherOptions = `<option value="">—</option>` + state.teachers.map(t=>`<option value="${escapeHtml(t.name)}" ${seat.teacher===t.name?"selected":""}>${escapeHtml(t.name)}</option>`).join("");
 const studOpts = (selected)=> `<option value="">生徒を選択</option>` + state.students.map(s=>`<option value="${escapeHtml(s.name)}" ${selected===s.name?"selected":""}>${escapeHtml(s.name)}</option>`).join("");
+const soloMap = loadSoloMapForDate(dateStr || currentDate);
+const leftName = normSoloName(seat.left && seat.left.student);
+const rightName = normSoloName(seat.right && seat.right.student);
+const leftSolo = !!(leftName && soloMap[soloComboKey(leftName, seat.left && seat.left.subject)]);
+const rightSolo = !!(rightName && soloMap[soloComboKey(rightName, seat.right && seat.right.subject)]);
+const blockRight = leftSolo && !rightName;
+const blockLeft = rightSolo && !leftName;
 
-const sideHtml = (side, key)=>`
-<div class="cell">
+const sideHtml = (side, key, blocked)=>`
+<div class="cell${blocked?" solo-blocked":""}">
 <input list="subjectList" class="subject-select js-subject" data-side="${key}" value="${escapeHtml(side.subject)}" placeholder="—">
+${blocked?SOLO_SLASH_MARK:""}
 </div>
-<div class="cell">
+<div class="cell${blocked?" solo-blocked":""}">
 <input type="text" class="grade-input js-grade" data-side="${key}" value="${escapeHtml(side.grade)}" placeholder="学年">
+${blocked?SOLO_SLASH_MARK:""}
 </div>
-<div class="cell student-cell status-${side.status} js-student-cell" data-side="${key}">
+<div class="cell student-cell status-${side.status} js-student-cell${blocked?" solo-blocked":""}" data-side="${key}">
 <select class="student-select js-student" data-side="${key}">${studOpts(side.student)}</select>
 <div class="status-buttons">
 <button type="button" class="js-status ${side.status==='course'?'active course':''}" data-side="${key}" data-status="course">講習</button>
 <button type="button" class="js-status ${side.status==='transfer'?'active transfer':''}" data-side="${key}" data-status="transfer">振替</button>
 <button type="button" class="js-status ${side.status==='absent'?'active absent':''}" data-side="${key}" data-status="absent">欠席</button>
 </div>
+${blocked?SOLO_SLASH_MARK:""}
 </div>`;
 
 return `
@@ -541,8 +564,8 @@ return `
 <div class="cell teacher-col">
 <select class="js-teacher">${teacherOptions}</select>
 </div>
-${sideHtml(seat.left,"left")}
-${sideHtml(seat.right,"right")}
+${sideHtml(seat.left,"left", blockLeft)}
+${sideHtml(seat.right,"right", blockRight)}
 </div>
 `;
 }
@@ -1469,8 +1492,8 @@ return true;
 function printDayPageHtml(dateStr){
 const day = state.days[dateStr];
 if(!day) return "";
-const blocks = (day.blocks || []).map((block, bi)=> blockHtml(block, bi)).join("");
-return `<div class="print-preview-page multi-print-page">
+const blocks = (day.blocks || []).map((block, bi)=> blockHtml(block, bi, dateStr)).join("");
+return `<div class="print-preview-page multi-print-page" data-solo-date="${escapeHtml(dateStr)}">
 ${imagesHtml()}
 <div class="page-head" style="margin-bottom:4mm;">
 <h2 style="font-size:16pt;margin:0;">${escapeHtml(formatJaDateLabel(dateStr))}</h2>
@@ -1484,6 +1507,7 @@ const root = document.getElementById("multiDayPrint");
 if(!root || !dates.length) return;
 root.innerHTML = dates.map(printDayPageHtml).join("");
 document.body.classList.add("multi-day-print");
+if(window.__repaintSolo){ try{ window.__repaintSolo(); }catch(e){} }
 const cleanup = ()=>{
 document.body.classList.remove("multi-day-print");
 root.innerHTML = "";
@@ -1618,13 +1642,13 @@ el.innerHTML = `
 </div>
 
 <div class="print-preview-wrap">
-<div class="print-preview-page" id="previewPage">
+<div class="print-preview-page" id="previewPage" data-solo-date="${escapeHtml(currentDate)}">
 ${imagesHtml()}
 <div class="page-head" style="margin-bottom:4mm;">
 <h2 style="font-size:16pt;margin:0;">${(()=>{ const d=new Date(currentDate+"T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WEEKDAY_LABELS[weekdayOf(currentDate)]}）`; })()}</h2>
 </div>
 <div class="blocks preview-blocks" id="previewBlocks">
-${day.blocks.map((block,bi)=> blockHtml(block, bi)).join("")}
+${day.blocks.map((block,bi)=> blockHtml(block, bi, currentDate)).join("")}
 </div>
 </div>
 </div>
@@ -1632,6 +1656,7 @@ ${day.blocks.map((block,bi)=> blockHtml(block, bi)).join("")}
 
 applyPrintCssVars();
 bindImageDrag();
+if(window.__repaintSolo){ try{ window.__repaintSolo(); }catch(e){} }
 
 document.getElementById("previewDatePicker").addEventListener("change", (e)=>{
 currentDate = e.target.value || todayStr();
@@ -2924,6 +2949,11 @@ document.addEventListener("DOMContentLoaded", init);
     }
   }
   function dateOf(el){
+    var tagged = el.closest ? el.closest("[data-solo-date]") : null;
+    if (tagged){
+      var taggedDate = tagged.getAttribute("data-solo-date");
+      if (taggedDate) return taggedDate;
+    }
     var v = el.closest ? el.closest(".view") : null;
     var inp = v ? v.querySelector("input[type=\"date\"]") : null;
     if (!inp) inp = document.querySelector("#view-seat input[type=\"date\"]");
@@ -2939,14 +2969,28 @@ document.addEventListener("DOMContentLoaded", init);
     var inp = cell.querySelector(".js-subject");
     return inp ? inp.value : "";
   }
-  /* 斜線はCSS(.cell.solo-blocked の repeating-linear-gradient)だけで描く。
+  var SLASH_SVG = '<svg class="solo-slash-mark" aria-hidden="true" focusable="false" preserveAspectRatio="none" viewBox="0 0 40 40"><line x1="0" y1="40" x2="40" y2="0" stroke="#000" stroke-width="4"/><line x1="-20" y1="40" x2="20" y2="0" stroke="#000" stroke-width="4"/><line x1="20" y1="40" x2="60" y2="0" stroke="#000" stroke-width="4"/></svg>';
+  function setBlocked(cells, on){
+    cells.forEach(function(c){
+      if (!c) return;
+      c.classList.toggle("solo-blocked", on);
+      var mark = c.querySelector(".solo-slash-mark");
+      if (on){
+        if (!mark) c.insertAdjacentHTML("beforeend", SLASH_SVG);
+      } else if (mark && mark.parentNode){
+        mark.parentNode.removeChild(mark);
+      }
+    });
+  }
+  /* 斜線は画面ではCSS背景、印刷・プレビューではSVG実要素でも描く。
      判定は「生徒名＋科目」の組み合わせで行う。同じ生徒でも科目によって
      1対1だったり1対2だったりするため、生徒名だけでは区別できないため。 */
   function paint(){
     var views = document.querySelectorAll(".view, .print-preview-page"), vi, rows = [];
     for (vi = 0; vi < views.length; vi++){
-      if (getComputedStyle(views[vi]).display === "none") continue;
-      var found = views[vi].querySelectorAll(".seat-row-wrap");
+      var view = views[vi];
+      if (view.classList.contains("view") && view.hidden) continue;
+      var found = view.querySelectorAll(".seat-row-wrap");
       for (var fi = 0; fi < found.length; fi++) rows.push(found[fi]);
     }
     var i;
@@ -2962,8 +3006,8 @@ document.addEventListener("DOMContentLoaded", init);
       var rightSolo = !!(rightName && map[rightKey]);
       var onRight = leftSolo && !rightName;
       var onLeft = rightSolo && !leftName;
-      [kids[5], kids[6], kids[7]].forEach(function(c){ c.classList.toggle("solo-blocked", onRight); });
-      [kids[2], kids[3], kids[4]].forEach(function(c){ c.classList.toggle("solo-blocked", onLeft); });
+      setBlocked([kids[5], kids[6], kids[7]], onRight);
+      setBlocked([kids[2], kids[3], kids[4]], onLeft);
     }
   }
   try { watch(); paint(); } catch(e){}
