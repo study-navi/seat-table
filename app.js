@@ -323,6 +323,7 @@ ${imagesHtml()}
 <button class="btn" id="btnImportEweb">eWebから読み込む</button>
 <button class="btn" id="btnImportImage">画像から取り込み</button>
 <button class="btn" id="btnPrint">A3横で印刷</button>
+<button class="btn" id="btnPrintMulti">複数日を印刷</button>
 </div>
 </div>
 </div>
@@ -384,6 +385,7 @@ saveState(); renderSeatView();
 });
 });
 document.getElementById("btnPrint").addEventListener("click", ()=> window.print());
+document.getElementById("btnPrintMulti").addEventListener("click", openMultiDayPrintModal);
 document.getElementById("btnImportImage").addEventListener("click", openImageImportModal);
 document.getElementById("btnImportEweb").addEventListener("click", openEwebImportModal);
 document.getElementById("btnCopyLastWeek").addEventListener("click", openCopyLastWeekModal);
@@ -1429,6 +1431,137 @@ dragging = null;
 });
 }
 
+function formatJaDateLabel(dateStr){
+const wd = weekdayOf(dateStr);
+const d = new Date(dateStr+"T00:00:00");
+if(isNaN(d.getTime())) return dateStr;
+return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WEEKDAY_LABELS[wd]}）`;
+}
+
+function dayHasPrintableContent(day){
+if(!day || !Array.isArray(day.blocks) || !day.blocks.length) return false;
+return day.blocks.some(block=>{
+if(!block) return false;
+if(block.time && block.time !== "時間を入力" && /[0-9]/.test(block.time)) return true;
+if((block.groupRows || []).some(g=> g && (g.name || g.teacher || g.subject || (g.students && g.students.length)))) return true;
+return (block.seats || []).some(seat=>{
+if(!seat) return false;
+if(seat.teacher) return true;
+const left = seat.left || {};
+const right = seat.right || {};
+return !!(left.student || left.subject || right.student || right.subject);
+});
+});
+}
+
+function listPrintableDates(){
+return Object.keys(state.days || {}).filter(dateStr=> dayHasPrintableContent(state.days[dateStr])).sort();
+}
+
+function datesInRange(dates, start, end){
+return dates.filter(dateStr=>{
+if(start && dateStr < start) return false;
+if(end && dateStr > end) return false;
+return true;
+});
+}
+
+function printDayPageHtml(dateStr){
+const day = state.days[dateStr];
+if(!day) return "";
+const blocks = (day.blocks || []).map((block, bi)=> blockHtml(block, bi)).join("");
+return `<div class="print-preview-page multi-print-page">
+${imagesHtml()}
+<div class="page-head" style="margin-bottom:4mm;">
+<h2 style="font-size:16pt;margin:0;">${escapeHtml(formatJaDateLabel(dateStr))}</h2>
+</div>
+<div class="blocks preview-blocks">${blocks || `<div class="empty-note">この日の授業枠はありません。</div>`}</div>
+</div>`;
+}
+
+function runMultiDayPrint(dates){
+const root = document.getElementById("multiDayPrint");
+if(!root || !dates.length) return;
+root.innerHTML = dates.map(printDayPageHtml).join("");
+document.body.classList.add("multi-day-print");
+const cleanup = ()=>{
+document.body.classList.remove("multi-day-print");
+root.innerHTML = "";
+window.removeEventListener("afterprint", cleanup);
+};
+window.addEventListener("afterprint", cleanup);
+window.print();
+}
+
+function openMultiDayPrintModal(){
+const allDates = listPrintableDates();
+if(!allDates.length){
+showToast("印刷できる座席表データがありません", true);
+return;
+}
+const defaultStart = allDates[0];
+const defaultEnd = allDates[allDates.length-1];
+openModal(`
+<h3>複数日を印刷</h3>
+<p>データがある日付だけを表示しています。空の日付は含まれません。1日につき1ページで、日付順に印刷します。</p>
+<div class="multi-print-range">
+<label>開始日 <input type="date" id="multiPrintStart" value="${defaultStart}"></label>
+<label>終了日 <input type="date" id="multiPrintEnd" value="${defaultEnd}"></label>
+</div>
+<div class="multi-print-summary" id="multiPrintSummary"></div>
+<div class="multi-date-list" id="multiDateList"></div>
+<div class="modal-actions">
+<button class="btn" id="modalCancel">キャンセル</button>
+<button class="btn primary" id="modalConfirm">印刷する</button>
+</div>
+`, (modal)=>{
+const startEl = modal.querySelector("#multiPrintStart");
+const endEl = modal.querySelector("#multiPrintEnd");
+const listEl = modal.querySelector("#multiDateList");
+const summaryEl = modal.querySelector("#multiPrintSummary");
+const confirmBtn = modal.querySelector("#modalConfirm");
+const refreshList = ()=>{
+const start = startEl.value;
+const end = endEl.value;
+if(start && end && start > end){
+listEl.innerHTML = `<p class="sub">開始日が終了日より後になっています。</p>`;
+summaryEl.textContent = "対象 0日 / 印刷 0ページ";
+confirmBtn.disabled = true;
+return;
+}
+const visible = datesInRange(allDates, start, end);
+if(!visible.length){
+listEl.innerHTML = `<p class="sub">この期間に印刷できる日付はありません。</p>`;
+summaryEl.textContent = "対象 0日 / 印刷 0ページ";
+confirmBtn.disabled = true;
+return;
+}
+listEl.innerHTML = visible.map(dateStr=>`
+<label class="opt"><input type="checkbox" class="js-multi-date" value="${escapeHtml(dateStr)}" checked>
+<span>${escapeHtml(formatJaDateLabel(dateStr))}</span></label>
+`).join("");
+updateSummary();
+};
+const selectedDates = ()=> Array.from(listEl.querySelectorAll(".js-multi-date:checked")).map(el=> el.value).sort();
+const updateSummary = ()=>{
+const n = selectedDates().length;
+summaryEl.textContent = `対象 ${n}日 / 印刷 ${n}ページ（1日1ページ）`;
+confirmBtn.disabled = n === 0;
+};
+listEl.addEventListener("change", updateSummary);
+startEl.addEventListener("change", refreshList);
+endEl.addEventListener("change", refreshList);
+refreshList();
+modal.querySelector("#modalCancel").addEventListener("click", closeModal);
+confirmBtn.addEventListener("click", ()=>{
+const dates = selectedDates();
+if(!dates.length){ showToast("印刷する日付を選んでください", true); return; }
+closeModal();
+setTimeout(()=> runMultiDayPrint(dates), 50);
+});
+});
+}
+
 function renderPrintPreviewView(){
 const el = document.getElementById("view-print");
 const ps = state.printSettings;
@@ -1456,6 +1589,7 @@ el.innerHTML = `
 </label>
 <div class="btn-row">
 <button class="btn primary" id="btnPrintFromPreview">この内容で印刷する</button>
+<button class="btn" id="btnPrintMultiFromPreview">複数日を印刷</button>
 </div>
 </div>
 </div>
@@ -1504,6 +1638,7 @@ currentDate = e.target.value || todayStr();
 renderPrintPreviewView();
 });
 document.getElementById("btnPrintFromPreview").addEventListener("click", ()=> window.print());
+document.getElementById("btnPrintMultiFromPreview").addEventListener("click", openMultiDayPrintModal);
 document.getElementById("rangeSubjectSize").addEventListener("input", (e)=>{
 ps.subjectSize = Number(e.target.value);
 document.getElementById("valSubjectSize").textContent = ps.subjectSize;

@@ -92,8 +92,72 @@ padding:8px 12px; font-size:0.88em; color: var(--ink); white-space:nowrap;
 .btn.danger{ color: var(--red); border-color: #f0c4bd; }
 .btn.danger:hover{ background: #fdecea; }
 .btn.ghost{ border-color: transparent; background:none; }
+.print-preview-page #btnImportEweb,
+.print-preview-page a.btn[href^="javascript:"]{
+background: transparent !important;
+color: inherit !important;
+border-color: var(--line) !important;
+}
 .btn:disabled{ opacity:0.45; cursor:not-allowed; }
 .btn-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+
+/* eWeb取込専用アクセント。primary（青）・danger（赤）とは別系統のティール
+   共有操作の汎用ボタン指定より詳細度を上げて、塗りつぶしが効くようにする */
+#btnImportEweb,
+#view-seat .js-share-actions #btnImportEweb{
+background: #0f5c56;
+color: #fff;
+border-color: #0f5c56;
+}
+#btnImportEweb:hover,
+#view-seat .js-share-actions #btnImportEweb:hover{
+background: #134e4a;
+border-color: #134e4a;
+color: #fff;
+}
+#btnImportEweb:focus,
+#btnImportEweb:focus-visible,
+#view-seat .js-share-actions #btnImportEweb:focus,
+#view-seat .js-share-actions #btnImportEweb:focus-visible{
+outline: 2px solid #0f766e;
+outline-offset: 2px;
+color: #fff;
+}
+#btnImportEweb:disabled,
+#view-seat .js-share-actions #btnImportEweb:disabled{
+background: #9cb8b5;
+border-color: #9cb8b5;
+color: #f4fffd;
+}
+#view-settings a.btn.primary[href^="javascript:"]{
+background: #0f5c56;
+color: #fff;
+border-color: #0f5c56;
+}
+#view-settings a.btn.primary[href^="javascript:"]:hover{
+background: #134e4a;
+border-color: #134e4a;
+color: #fff;
+}
+#view-settings a.btn.primary[href^="javascript:"]:focus,
+#view-settings a.btn.primary[href^="javascript:"]:focus-visible{
+outline: 2px solid #0f766e;
+outline-offset: 2px;
+color: #fff;
+}
+
+.multi-print-range{
+display:flex; flex-wrap:wrap; gap:12px; margin: 12px 0;
+}
+.multi-print-range label{ display:flex; align-items:center; gap:6px; font-size:0.9em; }
+.multi-print-range input[type=date]{ padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+.multi-print-summary{ font-size:0.9em; font-weight:600; color: var(--blue-dark); margin: 0 0 10px; }
+.multi-date-list{
+max-height: 36vh; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:8px;
+}
+.multi-date-list .opt{ margin:0 0 6px; }
+.multi-date-list .opt:last-child{ margin-bottom:0; }
+#multiDayPrint{ display: none !important; }
 
 /* ---------- Seat table toolbar ---------- */
 .seat-toolbar{
@@ -821,4 +885,36 @@ padding:0 !important; border:none !important; box-shadow:none !important;
 .seat-row-wrap, .group-row-wrap{ min-height: var(--print-row-h, 0px); }
 .group-time-auto{ font-size:7.5pt; color:#000; white-space:normal; line-height:1.15; min-width:0; overflow-wrap:anywhere; }
 .group-time-inline{ font-size:7.5pt; color:#000; white-space:normal; min-width:0; overflow-wrap:anywhere; }
+
+/* 複数日印刷: 画面には出さず、印刷時だけ1日1ページで出す */
+#multiDayPrint{ display:none !important; }
+body.multi-day-print .topbar,
+body.multi-day-print .tabs,
+body.multi-day-print #app,
+body.multi-day-print .toast,
+body.multi-day-print #modalRoot{
+display:none !important;
+}
+body.multi-day-print #multiDayPrint{
+display:block !important;
+}
+body.multi-day-print .multi-print-page{
+break-after: page;
+page-break-after: always;
+width: calc(100% / var(--print-page-scale, 1)) !important;
+height: var(--paper-h) !important;
+padding:0 !important; border:none !important; box-shadow:none !important;
+transform: none !important;
+position: relative;
+}
+body.multi-day-print .multi-print-page:last-child{
+break-after: auto;
+page-break-after: auto;
+}
+#btnImportEweb,
+#view-settings a.btn.primary[href^="javascript:"]{
+background: none !important;
+color: inherit !important;
+border-color: transparent !important;
+}
 }
