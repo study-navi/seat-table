@@ -2441,7 +2441,7 @@ document.addEventListener("DOMContentLoaded", init);
     p.textContent = "1行に1人。「氏名 生年月日」の形か、生年月日だけ（名簿の並び順に対応）。氏名は空白の有無を無視して照合します。日付は 2011/5/3・2011-5-3・2011年5月3日 のいずれでも可。";
     var ta = document.createElement("textarea");
     ta.rows = 6; ta.style.width = "100%";
-    ta.placeholder = "大利 幸之介\t2011/05/03\n藤井 章聡 2011-6-14";
+    ta.placeholder = "山田 太郎\t2012/04/02\n佐藤 花子 2013-5-15";
     var row = document.createElement("div");
     row.style.display = "flex"; row.style.gap = "8px"; row.style.alignItems = "center";
     row.style.marginTop = "8px"; row.style.flexWrap = "wrap";
