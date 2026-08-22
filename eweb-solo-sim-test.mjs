@@ -25,20 +25,28 @@ function extractBlock(startRe, endRe){
 
 const helpers = extractBlock(/^function normSoloName/m, /^function loadSoloMapForDate/m)
   + extractBlock(/^function loadSoloMapForDate/m, /^function soloSlashMarkHtml/m);
-const eweb = extractBlock(/^const EWEB_SUBJECT_ABBR/m, /^function guessSubjectFromName/m);
+const eweb = extractBlock(/^const EWEB_SUBJECT_ABBR/m, /^function openEwebImportModal/m);
 
 const mem = {};
 const STORAGE = {
   getItem(k){ return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
   setItem(k, v){ mem[k] = String(v); }
 };
-const ctx = { STORAGE, window: { STORAGE }, console };
+function uid(){ return "id" + Math.random().toString(36).slice(2, 8); }
+function emptySeat(n){
+  return { seatNumber: String(n), teacher: "", left: {student:"",subject:"",grade:"",status:"normal"}, right: {student:"",subject:"",grade:"",status:"normal"} };
+}
+function normalizeName(str){
+  if(str==null) return "";
+  return String(str).replace(/[\u3000\s]+/g," ").trim();
+}
+const ctx = { STORAGE, window: { STORAGE }, console, uid, emptySeat, normalizeName };
 vm.createContext(ctx);
 vm.runInContext(helpers + "\n" + eweb, ctx);
 
 const {
-  parseEwebSubject, isEwebSoloSubject, ewebSoloDisplaySubject,
-  soloMapFromEwebPayload, saveEwebSoloMap, soloComboKey
+  parseEwebSubject, isEwebSoloSubject, isEwebSoloItem, ewebSoloDisplaySubject,
+  soloMapFromEwebPayload, saveEwebSoloMap, soloComboKey, buildDayFromEwebPayload
 } = ctx;
 
 const SEP = "\u2016";
@@ -62,8 +70,15 @@ check("isEwebSoloSubject(通<数>)", isEwebSoloSubject("通<数>"));
 check("isEwebSoloSubject(通(数)) は false", !isEwebSoloSubject("通(数)"));
 check("isEwebSoloSubject(講(数)) は false", !isEwebSoloSubject("講(数)"));
 check("isEwebSoloSubject(講<数>) は false", !isEwebSoloSubject("講<数>"));
+check("isEwebSoloSubject(通＜国＞) 全角山括弧", isEwebSoloSubject("通＜国＞"));
+check("isEwebSoloSubject(通〈数〉) 山括弧", isEwebSoloSubject("通〈数〉"));
+check("parseEwebSubject(通＜国＞) → 国語", parseEwebSubject("通＜国＞").subject === "国語", parseEwebSubject("通＜国＞").subject);
 check("表示科目 通<国> → 国語", ewebSoloDisplaySubject("通<国>") === "国語");
 check("表示科目 通<数> → 数学", ewebSoloDisplaySubject("通<数>") === "数学");
+check("表示科目 通＜国＞ → 国語", ewebSoloDisplaySubject("通＜国＞") === "国語");
+check("PS1コマ＋数学は1対1", isEwebSoloItem({ student_name: "見本 花子", subject: "数学" }, { name: "PS1" }));
+check("PS1コマ＋通(数)は1対2のまま", !isEwebSoloItem({ student_name: "見本 花子", subject: "通(数)" }, { name: "PS1" }));
+check("raw.class_type_name の PS1 も1対1", isEwebSoloItem({ student_name: "見本 花子", subject: "英語", raw: { class_type_name: "PS1" } }, { name: "A" }));
 
 /* ---------- payload シミュレーション ---------- */
 const payloadKokugo = {
@@ -113,6 +128,30 @@ check("通(数) は1対1にならない", keysOf(map12).length === 0, keysOf(map
 check("講(数) は1対1にならない", keysOf(mapKo).length === 0, keysOf(mapKo).join(","));
 check("集団のみ payload は1対1にならない", keysOf(mapG).length === 0);
 check("schedules[].subject_name の 通<国> も1対1", mapSch[soloComboKey("伊藤 三郎", "国語")] === 1, keysOf(mapSch).join(","));
+
+const payloadPs1Koma = {
+  date: "2026-08-24",
+  komas: [{ id: 1, name: "PS1", start: "17:10", end: "18:40" }],
+  items: [{ koma_id: 1, teacher_name: "講師A", student_name: "見本 花子", grade: "中2", subject: "数学", pos: 1 }]
+};
+const mapPs1 = soloMapFromEwebPayload(payloadPs1Koma);
+check("コマ名PS1＋科目数学が1対1", mapPs1[soloComboKey("見本 花子", "数学")] === 1, keysOf(mapPs1).join(","));
+
+const payloadTwoSolos = {
+  date: "2026-08-25",
+  komas: [{ id: 1, name: "A", start: "17:10", end: "18:40" }],
+  items: [
+    { koma_id: 1, teacher_name: "講師A", student_name: "山田 太郎", grade: "中3", subject: "通<国>", pos: 1 },
+    { koma_id: 1, teacher_name: "講師A", student_name: "佐藤 花子", grade: "中2", subject: "通<数>", pos: 2 }
+  ]
+};
+const dayTwo = buildDayFromEwebPayload(payloadTwoSolos);
+const seatsTwo = (dayTwo.blocks[0] && dayTwo.blocks[0].seats) || [];
+check("同じ講師のPS1は席を分けて作る", seatsTwo.length === 2, String(seatsTwo.length));
+check("分けた席の相手側は空", !!(seatsTwo[0] && !seatsTwo[0].right.student && seatsTwo[1] && !seatsTwo[1].right.student));
+check("2人を1席にまとめない", seatsTwo.every(s => !(s.left.student && s.right.student)));
+const mapTwo = soloMapFromEwebPayload(payloadTwoSolos);
+check("同じ講師の2件とも1対1保存", mapTwo[soloComboKey("山田 太郎", "国語")] === 1 && mapTwo[soloComboKey("佐藤 花子", "数学")] === 1, keysOf(mapTwo).join(","));
 
 /* ---------- 保存キー・他日データ維持 ---------- */
 STORAGE.setItem("seat-table-solo", JSON.stringify({ "2020-01-01": { ["旧生徒" + SEP + "国語"]: 1 } }));

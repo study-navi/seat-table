@@ -922,18 +922,33 @@ eWeb（授業予定管理システム）の座席表ページで、ブックマ�
 }
 */
 const EWEB_SUBJECT_ABBR = {"数":"数学","英":"英語","国":"国語","理":"理科","社":"社会","化":"化学","物":"物理","生":"生物","地":"地学","現":"現代文","古":"古文","漢":"漢文","公":"公民"};
+const EWEB_PS1_RE = /(?:PS\s*1|ＰＳ\s*１|1\s*対\s*1|１\s*対\s*１|一\s*対\s*一)(?!\d)/i;
+function normalizeEwebSubjectText(raw){
+return String(raw || "")
+.replace(/&lt;/gi, "<")
+.replace(/&gt;/gi, ">")
+.replace(/[\uFF1C\u3008\u300A]/g, "<")
+.replace(/[\uFF1E\u3009\u300B]/g, ">")
+.replace(/\uFF08/g, "(")
+.replace(/\uFF09/g, ")")
+.replace(/[\u3000]+/g, " ")
+.trim();
+}
 function parseEwebSubject(raw){
-const s = (raw||"").trim();
-const m = s.match(/^(講|通)[\(<【\[]([^\)>】\]]+)[\)>】\]]$/);
+const s = normalizeEwebSubjectText(raw);
+const m = s.match(/^(講|通)\s*[<\(\[【]([^>\)\]】]+)[>\)\]】]$/);
 if(!m) return {subject: s, status: "normal"};
-const kind = m[1], code = m[2];
+const kind = m[1], code = m[2].replace(/\s+/g, "");
 const subject = EWEB_SUBJECT_ABBR[code] || code;
 return {subject, status: kind === "講" ? "course" : "normal"};
 }
-/* 1対1は通＋山括弧のみ。通(数)は1対2、講(数)は講習、集団は groups 側。 */
+/* 1対1は通＋山括弧。通(数)は1対2、講(数)は講習、集団は groups 側。
+   全角の ＜国＞ や 〈国〉 も山括弧として扱う。 */
 function isEwebSoloSubject(raw){
-const s = String(raw || "").trim();
-return /^通\s*[<\uFF1C][^>\uFF1E]+[>\uFF1E]$/.test(s);
+return /^通\s*<[^>]+>$/.test(normalizeEwebSubjectText(raw));
+}
+function isEwebPairSubject(raw){
+return /^通\s*\([^)]+\)$/.test(normalizeEwebSubjectText(raw));
 }
 function ewebItemSubject(it){
 if(!it) return "";
@@ -942,23 +957,51 @@ if(it.raw && it.raw.subject_name) return it.raw.subject_name;
 if(it.subject_name) return it.subject_name;
 return "";
 }
+function ewebPs1Texts(koma, it){
+const out = [];
+function add(v){ if(v != null && String(v) !== "") out.push(String(v)); }
+function addTypeFields(obj){
+if(!obj) return;
+["name","type","type_name","class_type","class_type_name","lesson_type","lesson_form","form","form_name","style","style_name","kind","kind_name","ps","class_form","class_form_name"].forEach(k=> add(obj[k]));
+}
+if(koma){ add(koma.name); addTypeFields(koma); addTypeFields(koma.raw); }
+if(it){ add(it.subject); add(it.subject_name); addTypeFields(it.raw); }
+return out;
+}
+function looksLikeEwebPs1(koma, it){
+return ewebPs1Texts(koma, it).some(t=> EWEB_PS1_RE.test(t));
+}
+/* 科目の山括弧を最優先。通(数)や講習は1対1にしない。
+   科目に括弧がなくても、コマ名や種別が PS1 / 1対1 なら1対1。 */
+function isEwebSoloItem(it, koma){
+const rawSubj = ewebItemSubject(it);
+const s = normalizeEwebSubjectText(rawSubj);
+if(/^講\s*[<(【\[]/.test(s)) return false;
+if(isEwebSoloSubject(rawSubj)) return true;
+if(isEwebPairSubject(rawSubj)) return false;
+return looksLikeEwebPs1(koma, it);
+}
 function ewebSoloDisplaySubject(raw){
 const parsed = parseEwebSubject(raw);
 if(parsed.subject && parsed.subject !== String(raw || "").trim()) return parsed.subject;
-const m = String(raw || "").trim().match(/^通\s*[<\uFF1C]([^>\uFF1E]+)[>\uFF1E]$/);
+const m = normalizeEwebSubjectText(raw).match(/^通\s*<([^>]+)>$/);
 if(!m) return parsed.subject;
-return EWEB_SUBJECT_ABBR[m[1]] || m[1];
+return EWEB_SUBJECT_ABBR[m[1].replace(/\s+/g, "")] || m[1].replace(/\s+/g, "");
+}
+function ewebPayloadItems(payload){
+return (payload && (payload.items || payload.schedules)) || [];
 }
 function soloMapFromEwebPayload(payload){
 const map = {};
 if(!payload) return map;
-const items = payload.items || payload.schedules || [];
-items.forEach(it=>{
-const rawSubj = ewebItemSubject(it);
-if(!isEwebSoloSubject(rawSubj)) return;
+const komaMap = {};
+(payload.komas||[]).forEach(k=> { if(k && k.id != null) komaMap[k.id] = k; });
+ewebPayloadItems(payload).forEach(it=>{
+const koma = komaMap[it.koma_id];
+if(!isEwebSoloItem(it, koma)) return;
 const name = it.student_name || "";
 if(!name) return;
-map[soloComboKey(name, ewebSoloDisplaySubject(rawSubj))] = 1;
+map[soloComboKey(name, ewebSoloDisplaySubject(ewebItemSubject(it)))] = 1;
 });
 return map;
 }
@@ -983,7 +1026,7 @@ const komaMap = {};
 
 // individual items grouped by koma -> teacher
 const byKoma = {};
-(payload.items||[]).forEach(it=>{
+ewebPayloadItems(payload).forEach(it=>{
 byKoma[it.koma_id] = byKoma[it.koma_id] || [];
 byKoma[it.koma_id].push(it);
 });
@@ -1015,25 +1058,33 @@ byTeacher[key].push(it);
 Object.keys(byTeacher).forEach(teacherNameRaw=>{
 const teacherName = normalizeName(teacherNameRaw);
 const list = byTeacher[teacherNameRaw].slice().sort((a,b)=> (a.pos||0)-(b.pos||0));
+const solos = [], rest = [];
+list.forEach(it=> { if(isEwebSoloItem(it, koma)) solos.push(it); else rest.push(it); });
+function pushIndividualSeat(leftIt, rightIt){
 const seat = emptySeat(block.seats.length+1);
 seat.teacher = teacherName;
-if(list[0]){
-const p0 = parseEwebSubject(list[0].subject);
-seat.left = {student:normalizeName(list[0].student_name||""), subject:p0.subject, grade:list[0].grade||"", status:p0.status};
+if(leftIt){
+const p0 = parseEwebSubject(ewebItemSubject(leftIt));
+seat.left = {student:normalizeName(leftIt.student_name||""), subject:p0.subject, grade:leftIt.grade||leftIt.student_grade||"", status:p0.status};
 }
-if(list[1]){
-const p1 = parseEwebSubject(list[1].subject);
-seat.right = {student:normalizeName(list[1].student_name||""), subject:p1.subject, grade:list[1].grade||"", status:p1.status};
+if(rightIt){
+const p1 = parseEwebSubject(ewebItemSubject(rightIt));
+seat.right = {student:normalizeName(rightIt.student_name||""), subject:p1.subject, grade:rightIt.grade||rightIt.student_grade||"", status:p1.status};
 }
 block.seats.push(seat);
-// 3人以上が同じ講師・同じコマの場合は、3人目以降を集団行として追加
-if(list.length>2){
-const p2 = parseEwebSubject(list[2].subject);
+}
+/* PS1 / 通<科目> は1人で1席。同じ講師の別生徒と1対2にまとめない。 */
+solos.forEach(it=> pushIndividualSeat(it, null));
+if(rest[0]){
+pushIndividualSeat(rest[0], rest[1] || null);
+if(rest.length>2){
+const p2 = parseEwebSubject(ewebItemSubject(rest[2]));
 block.groupRows.push({
 id: uid(), seatNumber: "", name: "", teacher: teacherName,
 subject: p2.subject,
-students: list.slice(2).map(x=>normalizeName(x.student_name)).filter(Boolean)
+students: rest.slice(2).map(x=>normalizeName(x.student_name)).filter(Boolean)
 });
+}
 }
 });
 
@@ -1754,7 +1805,7 @@ saveState(); renderPrintPreviewView();
 /* =========================================================
 SETTINGS / BACKUP
 ========================================================= */
-const EWEB_BOOKMARKLET = `javascript:(async()=>{window.focus();const m=location.pathname.match(/schoolDay\\/(\\d+)/);const schoolId=m?m[1]:null;const dateInput=document.querySelector('input[type=date]');const date=dateInput?dateInput.value:null;if(!schoolId||!date){alert('学校IDまたは日付が取得できませんでした');return;}try{const res=await window.axios.post('/api/schedule/getSchoolSchedules/'+schoolId+'/'+date+'/'+date);const data=res.data;const komas=(data.date_komas||[]).flatMap(dk=>(dk.koma_set&&dk.koma_set.komas)||[]).map(k=>({id:k.id,name:k.name,start:k.start,end:k.end}));const items=(data.schedules||[]).map(s=>({koma_id:s.koma_id,teacher_name:s.teacher_name,student_name:s.student_name,grade:s.student_grade,subject:s.subject_name,pos:s.pos,flags:Object.keys(s).filter(function(k){return /\u632f\u66ff/.test(String(s[k]))}).map(function(k){return k+"="+String(s[k]).slice(0,40)}),raw:Object.keys(s).reduce(function(o,k){var v=s[k];if(v===null||typeof v!=="object"){if(k!=="student_name"&&k!=="teacher_name")o[k]=v;}return o;},{})}));const groups=(data.scheduleGroups||[]).map(g=>({koma_id:g.koma_id,start:g.start,end:g.end,name:g.group_class?g.group_class.name:'',teacher_name:(g.join_teachers&&g.join_teachers[0]&&g.join_teachers[0].teacher&&g.join_teachers[0].teacher.user)?g.join_teachers[0].teacher.user.name:'',students:(g.join_students||[]).map(js=>js.student?js.student.name:'').filter(Boolean)}));const payload={date,komas,items,groups};const json=JSON.stringify(payload);let copied=false;try{await navigator.clipboard.writeText(json);copied=true;}catch(e){copied=false;}if(copied){alert(date+' の予定を座席表アプリ用にコピーしました（個別'+items.length+'件／集団'+groups.length+'件）。座席表アプリの「eWebから読み込む」ボタンに貼り付けてください。');}else{window.prompt('自動コピーに失敗しました。下のテキストを全選択（Ctrl+A/Cmd+A）してコピーし、座席表アプリの「eWebから読み込む」に貼り付けてください：',json);}}catch(err){alert('取得に失敗しました: '+(err.response?err.response.status:err.message));}})();`;
+const EWEB_BOOKMARKLET = `javascript:(async()=>{window.focus();const m=location.pathname.match(/schoolDay\\/(\\d+)/);const schoolId=m?m[1]:null;const dateInput=document.querySelector('input[type=date]');const date=dateInput?dateInput.value:null;if(!schoolId||!date){alert('学校IDまたは日付が取得できませんでした');return;}try{const res=await window.axios.post('/api/schedule/getSchoolSchedules/'+schoolId+'/'+date+'/'+date);const data=res.data;const komas=(data.date_komas||[]).flatMap(dk=>(dk.koma_set&&dk.koma_set.komas)||[]).map(k=>({id:k.id,name:k.name,start:k.start,end:k.end,raw:Object.keys(k).reduce(function(o,key){var v=k[key];if(v===null||typeof v!=="object")o[key]=v;return o;},{})}));const items=(data.schedules||[]).map(s=>({koma_id:s.koma_id,teacher_name:s.teacher_name,student_name:s.student_name,grade:s.student_grade,subject:s.subject_name,pos:s.pos,flags:Object.keys(s).filter(function(k){return /\u632f\u66ff/.test(String(s[k]))}).map(function(k){return k+"="+String(s[k]).slice(0,40)}),raw:Object.keys(s).reduce(function(o,k){var v=s[k];if(v===null||typeof v!=="object"){if(k!=="student_name"&&k!=="teacher_name")o[k]=v;}return o;},{})}));const groups=(data.scheduleGroups||[]).map(g=>({koma_id:g.koma_id,start:g.start,end:g.end,name:g.group_class?g.group_class.name:'',teacher_name:(g.join_teachers&&g.join_teachers[0]&&g.join_teachers[0].teacher&&g.join_teachers[0].teacher.user)?g.join_teachers[0].teacher.user.name:'',students:(g.join_students||[]).map(js=>js.student?js.student.name:'').filter(Boolean)}));const payload={date,komas,items,groups};const json=JSON.stringify(payload);let copied=false;try{await navigator.clipboard.writeText(json);copied=true;}catch(e){copied=false;}if(copied){alert(date+' の予定を座席表アプリ用にコピーしました（個別'+items.length+'件／集団'+groups.length+'件）。座席表アプリの「eWebから読み込む」ボタンに貼り付けてください。');}else{window.prompt('自動コピーに失敗しました。下のテキストを全選択（Ctrl+A/Cmd+A）してコピーし、座席表アプリの「eWebから読み込む」に貼り付けてください：',json);}}catch(err){alert('取得に失敗しました: '+(err.response?err.response.status:err.message));}})();`;
 
 function renderSettingsView(){
 const el = document.getElementById("view-settings");
