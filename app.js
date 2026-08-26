@@ -205,6 +205,19 @@ t._timer = setTimeout(()=>{ t.hidden = true; }, 3200);
 function jaCollator(){
 return new Intl.Collator("ja");
 }
+function rosterStudentNames(selected){
+const names = state.students.map(s=> (s && s.name) ? String(s.name).trim() : "").filter(Boolean);
+const unique = [];
+const seen = new Set();
+names.forEach(n=>{
+if(seen.has(n)) return;
+seen.add(n);
+unique.push(n);
+});
+if(selected && !seen.has(selected)) unique.push(selected);
+unique.sort((a,b)=> jaCollator().compare(a, b));
+return unique;
+}
 function weekdayOf(dateStr){
 const [y,m,d] = dateStr.split("-").map(Number);
 return new Date(y, m-1, d).getDay();
@@ -528,7 +541,7 @@ ${groupRows}
 
 function seatRowHtml(block, seat, si, dateStr){
 const teacherOptions = `<option value="">—</option>` + state.teachers.map(t=>`<option value="${escapeHtml(t.name)}" ${seat.teacher===t.name?"selected":""}>${escapeHtml(t.name)}</option>`).join("");
-const studOpts = (selected)=> `<option value="">生徒を選択</option>` + state.students.map(s=>`<option value="${escapeHtml(s.name)}" ${selected===s.name?"selected":""}>${escapeHtml(s.name)}</option>`).join("");
+const studOpts = (selected)=> `<option value="">生徒を選択</option>` + rosterStudentNames(selected).map(name=>`<option value="${escapeHtml(name)}" ${selected===name?"selected":""}>${escapeHtml(name)}</option>`).join("");
 const soloMap = loadSoloMapForDate(dateStr || currentDate);
 const leftName = normSoloName(seat.left && seat.left.student);
 const rightName = normSoloName(seat.right && seat.right.student);
@@ -576,7 +589,7 @@ ${sideHtml(seat.right,"right", blockRight)}
 
 function groupRowHtml(block, g, gi){
 const teacherOptions = `<option value="">—</option>` + state.teachers.map(t=>`<option value="${escapeHtml(t.name)}" ${g.teacher===t.name?"selected":""}>${escapeHtml(t.name)}</option>`).join("");
-const remainingStudents = state.students.filter(s=> !g.students.includes(s.name));
+const remainingStudents = rosterStudentNames().filter(name=> !g.students.includes(name));
 const chips = g.students.map(name=>`<span class="chip">${escapeHtml(name)}<button type="button" class="js-remove-gstudent" data-name="${escapeHtml(name)}">×</button></span>`).join("");
 return `
 <div class="group-row-wrap" data-group-index="${gi}">
@@ -600,7 +613,7 @@ return `
 <div class="group-students-footer">
 <select class="js-g-add-student add-student-chip">
 <option value="">＋ 生徒を追加</option>
-${remainingStudents.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join("")}
+${remainingStudents.map(name=>`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
 </select>
 <button type="button" class="btn danger js-del-group">削除</button>
 </div>
@@ -1210,8 +1223,18 @@ saveState(); renderStudentRows();
 });
 document.getElementById("btnPasteStudents").addEventListener("click", ()=> openPasteModal("students"));
 document.getElementById("btnAddStudent").addEventListener("click", ()=>{
+studentSearch = "";
+const searchEl = document.getElementById("studentSearch");
+if(searchEl) searchEl.value = "";
 state.students.push({id:uid(), name:"", birthdate:"", grade:"", subject:""});
-saveState(); renderStudentRows();
+saveState();
+renderTabs();
+renderStudentRows();
+const nameInput = document.querySelector("#studentRows tr:last-child .js-s-name");
+if(nameInput){
+nameInput.scrollIntoView({block:"nearest"});
+nameInput.focus();
+}
 });
 document.getElementById("btnDeleteSelectedStudents").addEventListener("click", ()=>{
 const ids = Array.from(document.querySelectorAll(".js-student-check:checked")).map(c=>c.dataset.id);
@@ -1260,6 +1283,7 @@ tbody.innerHTML = filtered.map(({s,i}, displayIdx)=>`
 tbody.querySelectorAll("tr").forEach(row=>{
 const idx = Number(row.dataset.index);
 row.querySelector(".js-s-name")?.addEventListener("input", e=>{ state.students[idx].name = e.target.value; saveState(); });
+row.querySelector(".js-s-name")?.addEventListener("change", e=>{ state.students[idx].name = String(e.target.value || "").trim(); e.target.value = state.students[idx].name; saveState(); });
 row.querySelector(".js-s-birth")?.addEventListener("change", e=>{ state.students[idx].birthdate = e.target.value; saveState(); });
 row.querySelector(".js-s-grade")?.addEventListener("input", e=>{ state.students[idx].grade = e.target.value; saveState(); });
 row.querySelector(".js-s-subject")?.addEventListener("change", e=>{ state.students[idx].subject = e.target.value; registerCustomSubject(e.target.value); saveState(); });
