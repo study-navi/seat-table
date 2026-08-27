@@ -176,7 +176,7 @@ right: {student:"",subject:"",grade:"",status:"normal"}
 function allSubjectSuggestions(){
 const used = new Set(DEFAULT_SUBJECTS);
 state.customSubjects.forEach(s=> s && used.add(s));
-state.students.forEach(s=> s.subject && used.add(s.subject));
+state.students.forEach(s=> splitSubjectList(s.subject).forEach(sub=> used.add(sub)));
 return Array.from(used);
 }
 function registerCustomSubject(val){
@@ -220,6 +220,23 @@ const key = rosterNameKey(name);
 if(!key) return -1;
 return state.teachers.findIndex(t=> rosterNameKey(t.name) === key);
 }
+function splitSubjectList(raw){
+return String(raw == null ? "" : raw)
+.split(/[・･,、/／]+/)
+.map(s=> normalizeName(s))
+.filter(Boolean);
+}
+function mergeSubjectList(existing, incoming){
+const out = [];
+const seen = new Set();
+splitSubjectList(existing).concat(splitSubjectList(incoming)).forEach(part=>{
+const key = rosterNameKey(part).toLowerCase();
+if(!key || seen.has(key)) return;
+seen.add(key);
+out.push(part);
+});
+return out.join("・");
+}
 function ensureStudentOnRoster(name, extra){
 name = normalizeName(name);
 if(!name || name === NEW_STUDENT_VALUE) return { added: false, name: "" };
@@ -228,7 +245,7 @@ if(i >= 0){
 const s = state.students[i];
 if(extra){
 if(extra.grade && !String(s.grade || "").trim()) s.grade = extra.grade;
-if(extra.subject && !String(s.subject || "").trim()) s.subject = extra.subject;
+if(extra.subject) s.subject = mergeSubjectList(s.subject, extra.subject);
 }
 return { added: false, name: s.name };
 }
@@ -237,7 +254,7 @@ id: uid(),
 name,
 birthdate: "",
 grade: extra && extra.grade ? extra.grade : "",
-subject: extra && extra.subject ? extra.subject : ""
+subject: extra && extra.subject ? mergeSubjectList("", extra.subject) : ""
 });
 return { added: true, name };
 }
@@ -798,7 +815,13 @@ return;
 if(t.classList.contains("js-subject")){
 const idx = seatRowIndex(t);
 const side = t.dataset.side;
-if(idx>-1){ block.seats[idx][side].subject = t.value; registerCustomSubject(t.value); saveState(); }
+if(idx>-1){
+const cell = block.seats[idx][side];
+cell.subject = t.value;
+registerCustomSubject(t.value);
+if(cell.student) ensureStudentOnRoster(cell.student, { subject: t.value });
+saveState();
+}
 return;
 }
 if(t.classList.contains("js-grade")){
@@ -845,7 +868,13 @@ return;
 }
 if(t.classList.contains("js-g-subject")){
 const idx = groupRowIndex(t);
-if(idx>-1){ block.groupRows[idx].subject = t.value; registerCustomSubject(t.value); saveState(); }
+if(idx>-1){
+const g = block.groupRows[idx];
+g.subject = t.value;
+registerCustomSubject(t.value);
+(g.students || []).forEach(n=> ensureStudentOnRoster(n, { subject: t.value }));
+saveState();
+}
 return;
 }
 if(t.classList.contains("js-g-seat-num")){
