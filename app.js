@@ -205,6 +205,99 @@ t._timer = setTimeout(()=>{ t.hidden = true; }, 3200);
 function jaCollator(){
 return new Intl.Collator("ja");
 }
+const NEW_STUDENT_VALUE = "__new_student__";
+
+function rosterNameKey(name){
+return String(name == null ? "" : name).replace(/[\s\u3000]+/g, "");
+}
+function findStudentIndexByName(name){
+const key = rosterNameKey(name);
+if(!key) return -1;
+return state.students.findIndex(s=> rosterNameKey(s.name) === key);
+}
+function findTeacherIndexByName(name){
+const key = rosterNameKey(name);
+if(!key) return -1;
+return state.teachers.findIndex(t=> rosterNameKey(t.name) === key);
+}
+function ensureStudentOnRoster(name, extra){
+name = normalizeName(name);
+if(!name || name === NEW_STUDENT_VALUE) return { added: false, name: "" };
+const i = findStudentIndexByName(name);
+if(i >= 0){
+const s = state.students[i];
+if(extra){
+if(extra.grade && !String(s.grade || "").trim()) s.grade = extra.grade;
+if(extra.subject && !String(s.subject || "").trim()) s.subject = extra.subject;
+}
+return { added: false, name: s.name };
+}
+state.students.push({
+id: uid(),
+name,
+birthdate: "",
+grade: extra && extra.grade ? extra.grade : "",
+subject: extra && extra.subject ? extra.subject : ""
+});
+return { added: true, name };
+}
+function ensureTeacherOnRoster(name){
+name = normalizeName(name);
+if(!name) return { added: false, name: "" };
+const i = findTeacherIndexByName(name);
+if(i >= 0) return { added: false, name: state.teachers[i].name };
+state.teachers.push({ id: uid(), name, subjects: "", note: "" });
+return { added: true, name };
+}
+function ensureRosterFromDay(day){
+let students = 0, teachers = 0;
+(day && day.blocks || []).forEach(b=>{
+(b.seats || []).forEach(seat=>{
+if(ensureTeacherOnRoster(seat.teacher).added) teachers++;
+["left","right"].forEach(side=>{
+const cell = seat[side];
+if(cell && ensureStudentOnRoster(cell.student, { grade: cell.grade, subject: cell.subject }).added) students++;
+});
+});
+(b.groupRows || []).forEach(g=>{
+if(ensureTeacherOnRoster(g.teacher).added) teachers++;
+(g.students || []).forEach(n=>{
+if(ensureStudentOnRoster(n, { subject: g.subject }).added) students++;
+});
+});
+});
+return { students, teachers };
+}
+function openNewStudentModal(onOk, onCancel){
+openModal(`
+<h3>新しい生徒を追加</h3>
+<p class="sub">氏名を入力すると生徒名簿にも追加されます。</p>
+<input type="text" id="newStudentName" placeholder="氏名" autocomplete="off" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:8px;">
+<div class="modal-actions">
+<button class="btn" id="modalCancel">キャンセル</button>
+<button class="btn primary" id="modalConfirm">追加する</button>
+</div>
+`, (modal)=>{
+const input = modal.querySelector("#newStudentName");
+input.focus();
+const cancel = ()=>{ closeModal(); if(onCancel) onCancel(); };
+modal.querySelector("#modalCancel").addEventListener("click", cancel);
+const confirm = ()=>{
+const name = normalizeName(input.value);
+if(!name){ showToast("氏名を入力してください", true); return; }
+closeModal();
+onOk(name);
+};
+modal.querySelector("#modalConfirm").addEventListener("click", confirm);
+input.addEventListener("keydown", (e)=>{
+if(e.key === "Enter"){ e.preventDefault(); confirm(); }
+});
+const backdrop = document.querySelector("#modalRoot .modal-backdrop");
+if(backdrop){
+backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop && onCancel) onCancel(); });
+}
+});
+}
 function rosterStudentNames(selected){
 const names = state.students.map(s=> (s && s.name) ? String(s.name).trim() : "").filter(Boolean);
 const unique = [];
@@ -541,7 +634,7 @@ ${groupRows}
 
 function seatRowHtml(block, seat, si, dateStr){
 const teacherOptions = `<option value="">—</option>` + state.teachers.map(t=>`<option value="${escapeHtml(t.name)}" ${seat.teacher===t.name?"selected":""}>${escapeHtml(t.name)}</option>`).join("");
-const studOpts = (selected)=> `<option value="">生徒を選択</option>` + rosterStudentNames(selected).map(name=>`<option value="${escapeHtml(name)}" ${selected===name?"selected":""}>${escapeHtml(name)}</option>`).join("");
+const studOpts = (selected)=> `<option value="">生徒を選択</option><option value="${NEW_STUDENT_VALUE}">＋ 新しい生徒を追加</option>` + rosterStudentNames(selected).map(name=>`<option value="${escapeHtml(name)}" ${selected===name?"selected":""}>${escapeHtml(name)}</option>`).join("");
 const soloMap = loadSoloMapForDate(dateStr || currentDate);
 const leftName = normSoloName(seat.left && seat.left.student);
 const rightName = normSoloName(seat.right && seat.right.student);
@@ -613,6 +706,7 @@ return `
 <div class="group-students-footer">
 <select class="js-g-add-student add-student-chip">
 <option value="">＋ 生徒を追加</option>
+<option value="${NEW_STUDENT_VALUE}">＋ 新しい生徒を追加</option>
 ${remainingStudents.map(name=>`<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
 </select>
 <button type="button" class="btn danger js-del-group">削除</button>
@@ -716,7 +810,23 @@ return;
 if(t.classList.contains("js-student")){
 const idx = seatRowIndex(t);
 const side = t.dataset.side;
-if(idx>-1){ block.seats[idx][side].student = t.value; saveState(); }
+if(idx>-1){
+const cell = block.seats[idx][side];
+if(t.value === NEW_STUDENT_VALUE){
+const prev = cell.student || "";
+openNewStudentModal((name)=>{
+const ensured = ensureStudentOnRoster(name, { grade: cell.grade, subject: cell.subject });
+cell.student = ensured.name;
+saveState();
+renderTabs();
+renderSeatView();
+}, ()=>{ t.value = prev; });
+return;
+}
+cell.student = t.value;
+if(t.value) ensureStudentOnRoster(t.value, { grade: cell.grade, subject: cell.subject });
+saveState();
+}
 return;
 }
 if(t.classList.contains("js-g-teacher")){
@@ -746,7 +856,19 @@ return;
 if(t.classList.contains("js-g-add-student")){
 const idx = groupRowIndex(t);
 if(idx>-1 && t.value){
-block.groupRows[idx].students.push(t.value);
+const g = block.groupRows[idx];
+if(t.value === NEW_STUDENT_VALUE){
+openNewStudentModal((name)=>{
+const ensured = ensureStudentOnRoster(name, { subject: g.subject });
+if(ensured.name && !g.students.includes(ensured.name)) g.students.push(ensured.name);
+saveState();
+renderTabs();
+renderSeatView();
+}, ()=>{ t.value = ""; });
+return;
+}
+ensureStudentOnRoster(t.value, { subject: g.subject });
+g.students.push(t.value);
 saveState(); renderSeatView();
 }
 return;
@@ -1146,11 +1268,19 @@ state.days[dateStr] = newDay;
 migrate(state);
 currentDate = dateStr;
 saveEwebSoloMap(dateStr, soloMapFromEwebPayload(payload));
+const added = ensureRosterFromDay(newDay);
 saveState();
 renderTabs();
 renderSeatView();
 if(window.__repaintSolo){ try{ window.__repaintSolo(); }catch(e){} }
-showToast(`${dateStr} の座席表をeWebから取り込みました`);
+let msg = `${dateStr} の座席表をeWebから取り込みました`;
+if(added.students || added.teachers){
+const bits = [];
+if(added.students) bits.push(`生徒${added.students}名`);
+if(added.teachers) bits.push(`講師${added.teachers}名`);
+msg += `（名簿に${bits.join("・")}を追加）`;
+}
+showToast(msg);
 });
 });
 });
