@@ -53,6 +53,8 @@ font-weight:700; font-size:1.1em; flex-shrink:0;
 .save-indicator .dot{ width:8px;height:8px;border-radius:50%; background: var(--green); }
 .save-indicator.saving .dot{ background: var(--amber); }
 .save-indicator.error .dot{ background: var(--red); }
+.google-backup-error{ color: var(--red); margin: 8px 0 0; }
+#googleBackupStatusBox p{ margin: 4px 0; }
 
 /* ---------- Tabs ---------- */
 .tabs{

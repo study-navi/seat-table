@@ -14,6 +14,10 @@ var SESSION_STORAGE = window.__seatSessionStorageOverride || window.sessionStora
 ========================================================= */
 
 const STORAGE_KEY = "seat-table-v1";
+/* 教室識別子。他教室のindex.htmlでは window.__seatClassroomId で上書きする。 */
+const CLASSROOM_ID = window.__seatClassroomId || "seat-table-classroom-1";
+const GOOGLE_BACKUP_CFG_KEY = "seat-table-google-backup";
+const GOOGLE_BACKUP_STATUS_KEY = "seat-table-google-backup-status";
 
 const WEEKDAY_LABELS = ["日","月","火","水","木","金","土"];
 
@@ -136,19 +140,211 @@ setSaveIndicator("saving");
 try{
 STORAGE.setItem(STORAGE_KEY, JSON.stringify(state));
 clearTimeout(saveTimer);
-saveTimer = setTimeout(()=> setSaveIndicator("ok"), 250);
+saveTimer = setTimeout(()=> applyGoogleBackupUi(), 250);
+scheduleGoogleBackup();
 }catch(e){
 setSaveIndicator("error");
 showToast("保存に失敗しました（ブラウザのストレージ容量を確認してください）", true);
 }
 }
-function setSaveIndicator(mode){
+function setSaveIndicator(mode, customText){
 const el = document.getElementById("saveIndicator");
 const text = document.getElementById("saveIndicatorText");
+if(!el || !text) return;
 el.classList.remove("saving","error");
-if(mode==="saving"){ el.classList.add("saving"); text.textContent = "保存中…"; }
-else if(mode==="error"){ el.classList.add("error"); text.textContent = "保存に失敗しました"; }
-else{ text.textContent = "この端末に自動保存"; }
+if(mode==="saving"){ el.classList.add("saving"); text.textContent = customText || "保存中…"; }
+else if(mode==="error"){ el.classList.add("error"); text.textContent = customText || "保存に失敗しました"; }
+else{ text.textContent = customText || (getGoogleBackupConfig() && loadGoogleBackupStatus().phase === "ok" ? "Googleに自動バックアップ済み" : "この端末に自動保存"); }
+}
+
+/* =========================================================
+Google自動バックアップ（端末内保存の追加の安全対策）
+生徒名などの中身は画面・URL・consoleに出さない。
+========================================================= */
+let googleBackupTimer = null;
+let googleBackupInFlight = false;
+let googleBackupAgain = false;
+
+function getGoogleBackupConfig(){
+let raw = null;
+try{ raw = STORAGE.getItem(GOOGLE_BACKUP_CFG_KEY); }catch(e){ return null; }
+if(!raw) return null;
+try{
+const cfg = JSON.parse(raw);
+const url = String(cfg && cfg.webAppUrl ? cfg.webAppUrl : "").trim();
+const token = String(cfg && cfg.token ? cfg.token : "");
+if(!url || !token) return null;
+if(cfg.classroomId && cfg.classroomId !== CLASSROOM_ID) return null;
+return { webAppUrl: url, token: token };
+}catch(e){ return null; }
+}
+function saveGoogleBackupConfig(webAppUrl, token){
+STORAGE.setItem(GOOGLE_BACKUP_CFG_KEY, JSON.stringify({
+classroomId: CLASSROOM_ID,
+webAppUrl: String(webAppUrl || "").trim(),
+token: String(token || "")
+}));
+}
+function loadGoogleBackupStatus(){
+let raw = null;
+try{ raw = STORAGE.getItem(GOOGLE_BACKUP_STATUS_KEY); }catch(e){}
+if(!raw) return { phase: getGoogleBackupConfig() ? "ok" : "unset", lastOkAt: "", lastError: "", lastFileName: "" };
+try{
+const s = JSON.parse(raw);
+return {
+phase: s.phase || (getGoogleBackupConfig() ? "ok" : "unset"),
+lastOkAt: s.lastOkAt || "",
+lastError: s.lastError || "",
+lastFileName: s.lastFileName || ""
+};
+}catch(e){
+return { phase: "unset", lastOkAt: "", lastError: "", lastFileName: "" };
+}
+}
+function persistGoogleBackupStatus(s){
+try{ STORAGE.setItem(GOOGLE_BACKUP_STATUS_KEY, JSON.stringify({
+phase: s.phase,
+lastOkAt: s.lastOkAt || "",
+lastError: s.lastError || "",
+lastFileName: s.lastFileName || ""
+})); }catch(e){}
+}
+function formatBackupTime(iso){
+if(!iso) return "—";
+const d = new Date(iso);
+if(isNaN(d.getTime())) return "—";
+const p = n=> String(n).padStart(2,"0");
+return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function googleErrorMessage(code){
+const map = {
+unauthorized: "教室IDまたは合言葉が正しくありません。",
+classroom_mismatch: "このWebアプリは別の教室用です。URLを確認してください。",
+not_setup: "Google側の初回セットアップがまだです。",
+invalid_payload: "バックアップデータの形式が正しくありません。",
+no_backup: "Google側にまだバックアップがありません。",
+bad_response: "Googleからの応答を読めませんでした。",
+failed: "Googleへの保存に失敗しました。",
+server_error: "Google側でエラーが起きました。",
+offline: "ネット未接続のためGoogleへ保存できませんでした。"
+};
+return map[code] || "Googleバックアップに失敗しました。";
+}
+function postGoogleBackupApi(action, extra){
+const cfg = getGoogleBackupConfig();
+if(!cfg) return Promise.reject(new Error("unset"));
+if(typeof navigator !== "undefined" && navigator.onLine === false){
+return Promise.reject(new Error("offline"));
+}
+const body = {
+action: action,
+classroomId: CLASSROOM_ID,
+token: cfg.token
+};
+if(action === "backup" && extra && extra.json) body.json = extra.json;
+return fetch(cfg.webAppUrl, {
+method: "POST",
+headers: { "Content-Type": "text/plain;charset=utf-8" },
+body: JSON.stringify(body)
+}).then(res=>{
+return res.text().then(text=>{
+let data = null;
+try{ data = JSON.parse(text); }catch(e){ throw new Error("bad_response"); }
+if(!data || !data.ok) throw new Error((data && data.error) || "failed");
+if(data.classroomId && data.classroomId !== CLASSROOM_ID) throw new Error("classroom_mismatch");
+return data;
+});
+});
+}
+function applyGoogleBackupUi(){
+const s = loadGoogleBackupStatus();
+if(googleBackupInFlight) s.phase = "saving";
+if(!getGoogleBackupConfig()){
+if(!googleBackupInFlight) setSaveIndicator("ok", "この端末に自動保存");
+}else if(s.phase === "saving"){
+setSaveIndicator("saving", "Googleへバックアップ中…");
+}else if(s.phase === "error"){
+setSaveIndicator("error", "Googleバックアップ失敗");
+}else if(s.phase === "ok"){
+setSaveIndicator("ok", "Googleに自動バックアップ済み");
+}
+const box = document.getElementById("googleBackupStatusBox");
+if(!box) return;
+box.innerHTML = googleBackupStatusHtml(s);
+}
+function googleBackupStatusHtml(s){
+const configured = !!getGoogleBackupConfig();
+const phase = !configured ? "unset" : (googleBackupInFlight ? "saving" : s.phase);
+let err = "";
+if(configured && phase === "error" && s.lastError) err = `<p class="google-backup-error">${escapeHtml(googleErrorMessage(s.lastError))}</p>`;
+return `
+<p><strong>現在の状態：</strong>${escapeHtml(
+phase === "unset" ? "未設定" :
+phase === "saving" ? "バックアップ中" :
+phase === "error" ? "エラー" :
+(s.lastOkAt ? "Googleに自動バックアップ済み" : "設定済み（まだバックアップなし）")
+)}</p>
+<p><strong>最終バックアップ日時：</strong>${escapeHtml(formatBackupTime(s.lastOkAt))}</p>
+${err}
+`;
+}
+function scheduleGoogleBackup(){
+if(!getGoogleBackupConfig()) return;
+clearTimeout(googleBackupTimer);
+googleBackupTimer = setTimeout(()=> runGoogleBackup(false), 1500);
+}
+function runGoogleBackup(urgent){
+if(!getGoogleBackupConfig()) return Promise.resolve();
+clearTimeout(googleBackupTimer);
+if(googleBackupInFlight){
+googleBackupAgain = true;
+return Promise.resolve();
+}
+googleBackupInFlight = true;
+googleBackupAgain = false;
+const prev = loadGoogleBackupStatus();
+persistGoogleBackupStatus(Object.assign({}, prev, { phase: "saving" }));
+applyGoogleBackupUi();
+return postGoogleBackupApi("backup", { json: state }).then(data=>{
+persistGoogleBackupStatus({
+phase: "ok",
+lastOkAt: data.updatedAt || new Date().toISOString(),
+lastError: "",
+lastFileName: data.fileName || ""
+});
+}).catch(err=>{
+const code = (err && err.message) ? String(err.message) : "failed";
+persistGoogleBackupStatus({
+phase: "error",
+lastOkAt: prev.lastOkAt || "",
+lastError: code,
+lastFileName: prev.lastFileName || ""
+});
+}).finally(()=>{
+googleBackupInFlight = false;
+applyGoogleBackupUi();
+if(googleBackupAgain){
+googleBackupAgain = false;
+scheduleGoogleBackup();
+}
+});
+}
+function confirmThenBackup(message, onConfirm){
+confirmDialog(message, ()=>{
+const go = ()=>{ try{ onConfirm(); }catch(e){} };
+if(!getGoogleBackupConfig()){ go(); return; }
+showToast("削除前にGoogleへバックアップしています…");
+runGoogleBackup(true).then(go, go);
+});
+}
+function dayStats(day){
+const blocks = (day && day.blocks) || [];
+let groups = 0, seats = 0;
+blocks.forEach(b=>{
+seats += (b.seats || []).length;
+groups += (b.groupRows || []).length;
+});
+return { blocks: blocks.length, seats, groups };
 }
 
 function getOrCreateDay(dateStr){
@@ -496,13 +692,15 @@ day.blocks.push(emptyBlock());
 saveState(); renderSeatView();
 });
 document.getElementById("btnDeleteAll").addEventListener("click", ()=>{
-confirmDialog(`${dateLabel} の座席表をすべて削除します。よろしいですか？`, ()=>{
+const st = dayStats(day);
+confirmThenBackup(`${dateLabel} の座席表をすべて削除します（授業枠 ${st.blocks}・席 ${st.seats}・集団行 ${st.groups}）。この日の内容は空になります。よろしいですか？`, ()=>{
 day.blocks = [];
 saveState(); renderSeatView();
 });
 });
 document.getElementById("btnDeleteGroupRows").addEventListener("click", ()=>{
-confirmDialog(`${dateLabel} の集団行だけをすべて削除します。よろしいですか？`, ()=>{
+const st = dayStats(day);
+confirmThenBackup(`${dateLabel} の集団行だけをすべて削除します（集団行 ${st.groups} 件）。座席の1対1／1対2はそのまま残ります。よろしいですか？`, ()=>{
 day.blocks.forEach(b=> b.groupRows = []);
 saveState(); renderSeatView();
 });
@@ -769,7 +967,8 @@ day.blocks.splice(bi+1, 0, clone);
 saveState(); renderSeatView();
 });
 root.querySelector(".js-del-block").addEventListener("click", ()=>{
-confirmDialog("この授業枠を削除します。よろしいですか？", ()=>{
+const dateLabel2 = `${currentDate}（${block.time || "時間未設定"}）`;
+confirmThenBackup(`${dateLabel2} の授業枠を削除します（席 ${block.seats.length}・集団行 ${block.groupRows.length}）。この時間帯の内容はなくなります。よろしいですか？`, ()=>{
 day.blocks.splice(bi,1);
 saveState(); renderSeatView();
 });
@@ -934,7 +1133,14 @@ return;
 }
 if(delGroup){
 const idx = groupRowIndex(delGroup);
-if(idx>-1){ block.groupRows.splice(idx,1); saveState(); renderSeatView(); }
+if(idx>-1){
+const g = block.groupRows[idx];
+const gname = (g && g.name) ? g.name : "（無名）";
+confirmThenBackup(`${currentDate} ${block.time || ""} の集団行「${gname}」を削除します（生徒 ${((g && g.students) || []).length} 名）。よろしいですか？`, ()=>{
+block.groupRows.splice(idx,1);
+saveState(); renderSeatView();
+});
+}
 return;
 }
 if(removeG){
@@ -1990,6 +2196,57 @@ SETTINGS / BACKUP
 ========================================================= */
 const EWEB_BOOKMARKLET = `javascript:(async()=>{window.focus();const m=location.pathname.match(/schoolDay\\/(\\d+)/);const schoolId=m?m[1]:null;const dateInput=document.querySelector('input[type=date]');const date=dateInput?dateInput.value:null;if(!schoolId||!date){alert('学校IDまたは日付が取得できませんでした');return;}try{const res=await window.axios.post('/api/schedule/getSchoolSchedules/'+schoolId+'/'+date+'/'+date);const data=res.data;const komas=(data.date_komas||[]).flatMap(dk=>(dk.koma_set&&dk.koma_set.komas)||[]).map(k=>({id:k.id,name:k.name,start:k.start,end:k.end,raw:Object.keys(k).reduce(function(o,key){var v=k[key];if(v===null||typeof v!=="object")o[key]=v;return o;},{})}));const items=(data.schedules||[]).map(s=>({koma_id:s.koma_id,teacher_name:s.teacher_name,student_name:s.student_name,grade:s.student_grade,subject:s.subject_name,pos:s.pos,flags:Object.keys(s).filter(function(k){return /\u632f\u66ff/.test(String(s[k]))}).map(function(k){return k+"="+String(s[k]).slice(0,40)}),raw:Object.keys(s).reduce(function(o,k){var v=s[k];if(v===null||typeof v!=="object"){if(k!=="student_name"&&k!=="teacher_name")o[k]=v;}return o;},{})}));const groups=(data.scheduleGroups||[]).map(g=>({koma_id:g.koma_id,start:g.start,end:g.end,name:g.group_class?g.group_class.name:'',teacher_name:(g.join_teachers&&g.join_teachers[0]&&g.join_teachers[0].teacher&&g.join_teachers[0].teacher.user)?g.join_teachers[0].teacher.user.name:'',students:(g.join_students||[]).map(js=>js.student?js.student.name:'').filter(Boolean)}));const payload={date,komas,items,groups};const json=JSON.stringify(payload);let copied=false;try{await navigator.clipboard.writeText(json);copied=true;}catch(e){copied=false;}if(copied){alert(date+' の予定を座席表アプリ用にコピーしました（個別'+items.length+'件／集団'+groups.length+'件）。座席表アプリの「eWebから読み込む」ボタンに貼り付けてください。');}else{window.prompt('自動コピーに失敗しました。下のテキストを全選択（Ctrl+A/Cmd+A）してコピーし、座席表アプリの「eWebから読み込む」に貼り付けてください：',json);}}catch(err){alert('取得に失敗しました: '+(err.response?err.response.status:err.message));}})();`;
 
+function isValidGoogleWebAppUrl(url){
+url = String(url || "").trim();
+return /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[A-Za-z0-9_-]+\/exec\/?$/.test(url);
+}
+function openGoogleSetupModal(){
+const cfg = getGoogleBackupConfig() || { webAppUrl: "", token: "" };
+openModal(`
+<h3>Google自動バックアップの設定</h3>
+<p class="sub">この教室（${escapeHtml(CLASSROOM_ID)}）専用です。別教室のURLや合言葉は使わないでください。先生のGoogleログインは不要です。手順はリポジトリの GOOGLE_BACKUP_SETUP.md を参照してください。</p>
+<label>WebアプリURL
+<input type="url" id="googleWebAppUrl" value="${escapeHtml(cfg.webAppUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0 12px;">
+</label>
+<label>合言葉
+<input type="password" id="googleBackupToken" value="" placeholder="${cfg.token ? "（変更する場合のみ入力）" : "Apps Scriptに設定した合言葉"}" autocomplete="off" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0 12px;">
+</label>
+<div class="modal-actions">
+<button class="btn" id="modalCancel">キャンセル</button>
+<button class="btn primary" id="modalConfirm">保存する</button>
+</div>
+`, (modal)=>{
+modal.querySelector("#modalCancel").addEventListener("click", closeModal);
+modal.querySelector("#modalConfirm").addEventListener("click", ()=>{
+const url = modal.querySelector("#googleWebAppUrl").value.trim();
+let token = modal.querySelector("#googleBackupToken").value;
+if(!isValidGoogleWebAppUrl(url)){ showToast("WebアプリURLの形式が正しくありません", true); return; }
+if(!token) token = cfg.token;
+if(!token){ showToast("合言葉を入力してください", true); return; }
+saveGoogleBackupConfig(url, token);
+closeModal();
+showToast("この教室のGoogleバックアップ設定を保存しました");
+if(currentTab === "settings") renderSettingsView();
+runGoogleBackup(true);
+});
+});
+}
+function restoreFromGoogleBackup(){
+confirmDialog("Googleに保存された最新バックアップで、この端末の座席表・名簿・設定を置き換えます。現在この端末にのみある変更は失われます。", ()=>{
+if(!getGoogleBackupConfig()){ showToast("先にGoogleバックアップを設定してください", true); return; }
+showToast("Googleから復元しています…");
+postGoogleBackupApi("restore").then(data=>{
+if(!data.json || typeof data.json !== "object"){ showToast("復元データが空でした", true); return; }
+state = migrate(data.json);
+saveState();
+showToast("復元しました。画面を再読み込みします");
+setTimeout(()=>{ location.reload(); }, 400);
+}).catch(err=>{
+showToast(googleErrorMessage(err && err.message), true);
+});
+});
+}
+
 function renderSettingsView(){
 const el = document.getElementById("view-settings");
 el.innerHTML = `
@@ -1997,6 +2254,17 @@ el.innerHTML = `
 <p class="eyebrow">SETTINGS</p>
 <h2>設定・バックアップ</h2>
 <p class="sub">すべてのデータ（生徒名簿・講師名簿・座席配置・週ごとの座席表・曜日プリセット）をまとめてバックアップ・復元できます。</p>
+</div>
+<div class="panel settings-card" style="grid-column:1/-1;">
+<h3>Google自動バックアップ</h3>
+<p>座席表・名簿・設定を、この教室専用のGoogleドライブへ自動保存します。先生のGoogleログインは不要です。端末内の保存はそのまま残り、Google側は追加の控えです。</p>
+<p><strong>教室ID：</strong><code>${escapeHtml(CLASSROOM_ID)}</code>（この教室の設定はこの端末にだけ保存されます）</p>
+<div id="googleBackupStatusBox">${googleBackupStatusHtml(loadGoogleBackupStatus())}</div>
+<div class="btn-row" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:8px;">
+<button class="btn" id="btnGoogleBackupSetup">設定する</button>
+<button class="btn" id="btnGoogleBackupNow">今すぐバックアップ</button>
+<button class="btn primary" id="btnGoogleBackupRestore">Googleから復元</button>
+</div>
 </div>
 <div class="settings-grid">
 <div class="panel settings-card">
@@ -2023,6 +2291,17 @@ el.innerHTML = `
 </div>
 </div>
 `;
+document.getElementById("btnGoogleBackupSetup").addEventListener("click", openGoogleSetupModal);
+document.getElementById("btnGoogleBackupNow").addEventListener("click", ()=>{
+if(!getGoogleBackupConfig()){ showToast("先に「設定する」からURLと合言葉を保存してください", true); return; }
+showToast("Googleへバックアップしています…");
+runGoogleBackup(true).then(()=>{
+const s = loadGoogleBackupStatus();
+if(s.phase === "error") showToast(googleErrorMessage(s.lastError), true);
+else showToast("Googleへバックアップしました");
+});
+});
+document.getElementById("btnGoogleBackupRestore").addEventListener("click", restoreFromGoogleBackup);
 document.getElementById("btnExport").addEventListener("click", ()=>{
 const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
 const url = URL.createObjectURL(blob);
@@ -2064,6 +2343,7 @@ initTabs();
 initPastePreview();
 renderTabs();
 renderCurrentView();
+applyGoogleBackupUi();
 }
 document.addEventListener("DOMContentLoaded", init);
 
