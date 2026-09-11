@@ -241,7 +241,14 @@ action: action,
 classroomId: CLASSROOM_ID,
 token: cfg.token
 };
-if(action === "backup" && extra && extra.json) body.json = extra.json;
+if(action === "backup"){
+let snapshot = extra && extra.json;
+if(!snapshot){
+try{ snapshot = JSON.parse(STORAGE.getItem(STORAGE_KEY)); }catch(e){ snapshot = null; }
+}
+if(!snapshot || typeof snapshot !== "object") snapshot = state;
+body.json = snapshot;
+}
 return fetch(cfg.webAppUrl, {
 method: "POST",
 headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -2204,7 +2211,10 @@ function openGoogleSetupModal(){
 const cfg = getGoogleBackupConfig() || { webAppUrl: "", token: "" };
 openModal(`
 <h3>Google自動バックアップの設定</h3>
-<p class="sub">この教室（${escapeHtml(CLASSROOM_ID)}）専用です。別教室のURLや合言葉は使わないでください。先生のGoogleログインは不要です。手順はリポジトリの GOOGLE_BACKUP_SETUP.md を参照してください。</p>
+<p class="sub">WebアプリURLと合言葉を、この端末に保存します。教室IDは固定で、別教室には変更できません。先生のGoogleログインは不要です。</p>
+<label>教室ID
+<input type="text" id="googleClassroomId" value="${escapeHtml(CLASSROOM_ID)}" readonly style="width:100%;border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0 12px;background:#f5f7fb;">
+</label>
 <label>WebアプリURL
 <input type="url" id="googleWebAppUrl" value="${escapeHtml(cfg.webAppUrl)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0 12px;">
 </label>
@@ -2220,6 +2230,9 @@ modal.querySelector("#modalCancel").addEventListener("click", closeModal);
 modal.querySelector("#modalConfirm").addEventListener("click", ()=>{
 const url = modal.querySelector("#googleWebAppUrl").value.trim();
 let token = modal.querySelector("#googleBackupToken").value;
+if(modal.querySelector("#googleClassroomId").value !== CLASSROOM_ID){
+showToast("教室IDは変更できません", true); return;
+}
 if(!isValidGoogleWebAppUrl(url)){ showToast("WebアプリURLの形式が正しくありません", true); return; }
 if(!token) token = cfg.token;
 if(!token){ showToast("合言葉を入力してください", true); return; }
@@ -2236,6 +2249,10 @@ confirmDialog("Googleに保存された最新バックアップで、この端�
 if(!getGoogleBackupConfig()){ showToast("先にGoogleバックアップを設定してください", true); return; }
 showToast("Googleから復元しています…");
 postGoogleBackupApi("restore").then(data=>{
+if(data.classroomId && data.classroomId !== CLASSROOM_ID){
+showToast("別教室のバックアップは復元できません", true);
+return;
+}
 if(!data.json || typeof data.json !== "object"){ showToast("復元データが空でした", true); return; }
 state = migrate(data.json);
 saveState();
@@ -2258,7 +2275,9 @@ el.innerHTML = `
 <div class="panel settings-card" style="grid-column:1/-1;">
 <h3>Google自動バックアップ</h3>
 <p>座席表・名簿・設定を、この教室専用のGoogleドライブへ自動保存します。先生のGoogleログインは不要です。端末内の保存はそのまま残り、Google側は追加の控えです。</p>
-<p><strong>教室ID：</strong><code>${escapeHtml(CLASSROOM_ID)}</code>（この教室の設定はこの端末にだけ保存されます）</p>
+<p><strong>教室ID：</strong><code>${escapeHtml(CLASSROOM_ID)}</code>（固定。別教室には変更できません）</p>
+<p><strong>WebアプリURL：</strong>${getGoogleBackupConfig() ? escapeHtml(getGoogleBackupConfig().webAppUrl) : "未設定"}</p>
+<p><strong>合言葉：</strong>${getGoogleBackupConfig() ? "この端末に保存済み" : "未設定"}</p>
 <div id="googleBackupStatusBox">${googleBackupStatusHtml(loadGoogleBackupStatus())}</div>
 <div class="btn-row" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:8px;">
 <button class="btn" id="btnGoogleBackupSetup">設定する</button>
