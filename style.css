@@ -55,6 +55,47 @@ font-weight:700; font-size:1.1em; flex-shrink:0;
 .save-indicator.error .dot{ background: var(--red); }
 .google-backup-error{ color: var(--red); margin: 8px 0 0; }
 #googleBackupStatusBox p{ margin: 4px 0; }
+.history-view-badge{
+display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px;
+background:#fff3cd; color:#856404; font-size:0.55em; vertical-align:middle;
+}
+body.history-view-mode{ padding-bottom:72px; }
+.history-view-banner{
+position:fixed; left:0; right:0; bottom:0; z-index:300;
+background:var(--blue-dark); color:#fff; box-shadow:0 -4px 16px rgba(0,0,0,0.18);
+}
+.history-view-banner-inner{
+max-width:1400px; margin:0 auto; padding:12px 16px;
+display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;
+}
+.history-view-banner-text{ font-size:0.92em; font-weight:600; }
+.history-view-banner-actions{ display:flex; flex-wrap:wrap; gap:8px; }
+.history-view-banner .btn{ background:#fff; color:var(--blue-dark); border:none; }
+.history-view-banner .btn.primary{ background:var(--green); color:#fff; }
+.history-list{ max-height:60vh; overflow:auto; }
+.history-day-group{ border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:12px; }
+.history-day-group h4{ margin:0 0 8px; font-size:1em; }
+.history-day-summary{ margin:0 0 8px; padding-left:1.2em; color:var(--ink-soft); font-size:0.9em; }
+.history-day-summary li{ margin:4px 0; }
+.history-finalized-note{ margin:0 0 8px; color:var(--green); font-size:0.88em; font-weight:600; }
+.history-entries{ display:flex; flex-direction:column; gap:8px; }
+.history-entry{
+display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between;
+border-top:1px solid var(--line-soft); padding-top:8px;
+}
+.history-entry-head{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.history-kind{
+display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.78em; font-weight:600;
+}
+.history-kind.auto{ background:var(--blue-pale); color:var(--blue-dark); }
+.history-kind.finalized{ background:#e8f6ee; color:var(--green); }
+.history-saved-at{ font-size:0.86em; color:var(--ink-soft); }
+.history-loading{ color:var(--ink-soft); padding:12px 0; }
+@media (max-width:640px){
+.history-view-banner-inner{ flex-direction:column; align-items:stretch; }
+.history-view-banner-actions .btn{ flex:1; }
+.history-entry{ flex-direction:column; align-items:stretch; }
+}
 
 /* ---------- Tabs ---------- */
 .tabs{

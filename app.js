@@ -44,6 +44,7 @@ let currentDate = todayStr();
 let currentTab = "seat";
 let studentSearch = "";
 let teacherWarnCache = new Set(); // teacher names currently in use somewhere
+let historyView = null; // 過去の座席表表示中 { snapshotState, savedAt, kind, fileId, targetDate, fileName }
 
 function todayStr(){
 const d = new Date();
@@ -136,6 +137,7 @@ return data;
 
 let saveTimer = null;
 function saveState(){
+if(historyView) return;
 setSaveIndicator("saving");
 try{
 STORAGE.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -147,6 +149,9 @@ setSaveIndicator("error");
 showToast("保存に失敗しました（ブラウザのストレージ容量を確認してください）", true);
 }
 }
+function getLiveState(){ return state; }
+function getDisplayState(){ return historyView ? historyView.snapshotState : state; }
+function isHistoryView(){ return !!historyView; }
 function setSaveIndicator(mode, customText){
 const el = document.getElementById("saveIndicator");
 const text = document.getElementById("saveIndicatorText");
@@ -154,7 +159,7 @@ if(!el || !text) return;
 el.classList.remove("saving","error");
 if(mode==="saving"){ el.classList.add("saving"); text.textContent = customText || "保存中…"; }
 else if(mode==="error"){ el.classList.add("error"); text.textContent = customText || "保存に失敗しました"; }
-else{ text.textContent = customText || (getGoogleBackupConfig() && loadGoogleBackupStatus().phase === "ok" ? "Googleに自動バックアップ済み" : "この端末に自動保存"); }
+else{ text.textContent = customText || (getGoogleBackupConfig() && loadGoogleBackupStatus().phase === "ok" ? "Googleに履歴保存済み" : "この端末に自動保存"); }
 }
 
 /* =========================================================
@@ -222,13 +227,14 @@ unauthorized: "教室IDまたは合言葉が正しくありません。",
 classroom_mismatch: "このWebアプリは別の教室用です。URLを確認してください。",
 not_setup: "Google側の初回セットアップがまだです。",
 invalid_payload: "バックアップデータの形式が正しくありません。",
-no_backup: "Google側にまだバックアップがありません。",
+no_backup: "Google側にまだ履歴がありません。",
+not_found: "指定の履歴が見つかりません。",
 bad_response: "Googleからの応答を読めませんでした。",
 failed: "Googleへの保存に失敗しました。",
 server_error: "Google側でエラーが起きました。",
 offline: "ネット未接続のためGoogleへ保存できませんでした。"
 };
-return map[code] || "Googleバックアップに失敗しました。";
+return map[code] || "Googleへの保存に失敗しました。";
 }
 function postGoogleBackupApi(action, extra){
 const cfg = getGoogleBackupConfig();
@@ -241,13 +247,18 @@ action: action,
 classroomId: CLASSROOM_ID,
 token: cfg.token
 };
-if(action === "backup"){
+if(action === "backup" || action === "finalizeLesson"){
 let snapshot = extra && extra.json;
 if(!snapshot){
 try{ snapshot = JSON.parse(STORAGE.getItem(STORAGE_KEY)); }catch(e){ snapshot = null; }
 }
-if(!snapshot || typeof snapshot !== "object") snapshot = state;
+if(!snapshot || typeof snapshot !== "object") snapshot = getLiveState();
 body.json = snapshot;
+body.targetDate = (extra && extra.targetDate) || currentDate;
+}
+if(action === "snapshot"){
+body.fileId = extra && extra.fileId;
+if(!body.fileId) return Promise.reject(new Error("invalid_payload"));
 }
 return fetch(cfg.webAppUrl, {
 method: "POST",
@@ -273,7 +284,7 @@ setSaveIndicator("saving", "Googleへバックアップ中…");
 }else if(s.phase === "error"){
 setSaveIndicator("error", "Googleバックアップ失敗");
 }else if(s.phase === "ok"){
-setSaveIndicator("ok", "Googleに自動バックアップ済み");
+setSaveIndicator("ok", "Googleに履歴保存済み");
 }
 const box = document.getElementById("googleBackupStatusBox");
 if(!box) return;
@@ -289,9 +300,9 @@ return `
 phase === "unset" ? "未設定" :
 phase === "saving" ? "バックアップ中" :
 phase === "error" ? "エラー" :
-(s.lastOkAt ? "Googleに自動バックアップ済み" : "設定済み（まだバックアップなし）")
+(s.lastOkAt ? "Googleに履歴保存済み" : "設定済み（まだ履歴なし）")
 )}</p>
-<p><strong>最終バックアップ日時：</strong>${escapeHtml(formatBackupTime(s.lastOkAt))}</p>
+<p><strong>最終保存日時：</strong>${escapeHtml(formatBackupTime(s.lastOkAt))}</p>
 ${err}
 `;
 }
@@ -312,7 +323,7 @@ googleBackupAgain = false;
 const prev = loadGoogleBackupStatus();
 persistGoogleBackupStatus(Object.assign({}, prev, { phase: "saving" }));
 applyGoogleBackupUi();
-return postGoogleBackupApi("backup", { json: state }).then(data=>{
+return postGoogleBackupApi("backup", { json: getLiveState(), targetDate: currentDate }).then(data=>{
 persistGoogleBackupStatus({
 phase: "ok",
 lastOkAt: data.updatedAt || new Date().toISOString(),
@@ -355,10 +366,267 @@ return { blocks: blocks.length, seats, groups };
 }
 
 function getOrCreateDay(dateStr){
+if(historyView){
+const d = historyView.snapshotState.days && historyView.snapshotState.days[dateStr];
+return d || { blocks: [] };
+}
 if(!state.days[dateStr]){
 state.days[dateStr] = { blocks: COMMON_TIME_PRESETS.map(()=>emptyBlock()) };
 }
 return state.days[dateStr];
+}
+function historyKindLabel(kind){
+return kind === "finalized" ? "授業完了・確定" : "自動保存";
+}
+function formatHistorySavedAt(iso){
+return formatBackupTime(iso);
+}
+function formatHistoryDateLabel(dateStr){
+if(!dateStr) return "日付不明";
+const [y,m,d] = dateStr.split("-").map(Number);
+if(!y) return dateStr;
+const wd = weekdayOf(dateStr);
+return `${y}年${m}月${d}日（${WEEKDAY_LABELS[wd]}）`;
+}
+function summarizeDayBlocks(day){
+const blocks = (day && day.blocks) || [];
+return blocks.map(block=>{
+const students = new Set();
+let mainSubject = "";
+let mainTeacher = "";
+(block.seats || []).forEach(seat=>{
+if(seat.teacher && !mainTeacher) mainTeacher = seat.teacher;
+["left","right"].forEach(side=>{
+const cell = seat[side] || {};
+if(cell.student) students.add(cell.student);
+if(cell.subject && !mainSubject) mainSubject = cell.subject;
+});
+});
+(block.groupRows || []).forEach(g=>{
+if(g.teacher && !mainTeacher) mainTeacher = g.teacher;
+if(g.subject && !mainSubject) mainSubject = g.subject;
+(g.students || []).forEach(n=>{ if(n) students.add(n); });
+});
+return {
+time: block.time || "時間未設定",
+subject: mainSubject || "—",
+teacher: mainTeacher || "—",
+studentCount: students.size
+};
+}).filter(row=> row.studentCount > 0 || (row.time && row.time !== "時間を入力"));
+}
+function groupHistoryItems(items){
+const map = {};
+(items || []).forEach(item=>{
+const key = item.targetDate || "unknown";
+if(!map[key]) map[key] = { targetDate: key, items: [], finalizedAt: "" };
+map[key].items.push(item);
+if(item.kind === "finalized"){
+const cur = map[key].finalizedAt;
+if(!cur || String(item.savedAt) > cur) map[key].finalizedAt = item.savedAt;
+}
+});
+return Object.values(map).sort((a,b)=> String(b.targetDate).localeCompare(String(a.targetDate)));
+}
+function updateHistoryBanner(){
+let bar = document.getElementById("historyViewBanner");
+if(!historyView){
+if(bar) bar.remove();
+document.body.classList.remove("history-view-mode");
+return;
+}
+document.body.classList.add("history-view-mode");
+if(!bar){
+bar = document.createElement("div");
+bar.id = "historyViewBanner";
+bar.className = "history-view-banner";
+document.body.appendChild(bar);
+}
+const label = formatHistoryDateLabel(historyView.targetDate || currentDate);
+const timeLabel = formatHistorySavedAt(historyView.savedAt);
+bar.innerHTML = `
+<div class="history-view-banner-inner">
+<span class="history-view-banner-text">過去の座席表を表示中：${escapeHtml(label)} ${escapeHtml(timeLabel)}（${escapeHtml(historyKindLabel(historyView.kind))}）</span>
+<div class="history-view-banner-actions">
+<button type="button" class="btn" id="btnHistoryBackToNow">現在に戻る</button>
+<button type="button" class="btn primary" id="btnHistoryRestorePoint">この時点に復元</button>
+</div>
+</div>`;
+bar.querySelector("#btnHistoryBackToNow").addEventListener("click", exitHistoryView);
+bar.querySelector("#btnHistoryRestorePoint").addEventListener("click", restoreFromHistoryPoint);
+}
+function exitHistoryView(){
+historyView = null;
+updateHistoryBanner();
+if(currentTab === "seat") renderSeatView();
+else renderCurrentView();
+showToast("現在の座席表に戻りました");
+}
+function restoreFromHistoryPoint(){
+if(!historyView) return;
+const label = formatHistorySavedAt(historyView.savedAt);
+confirmDialog(`この履歴（${label}）の時点に座席表を復元します。現在のデータは履歴として保存したうえで置き換えます。よろしいですか？`, ()=>{
+if(!getGoogleBackupConfig()){
+showToast("先にGoogle連携を設定してください", true);
+return;
+}
+const snap = historyView.snapshotState;
+const restoreDate = historyView.targetDate;
+showToast("現在のデータを履歴保存してから復元しています…");
+runGoogleBackup(true).then(()=>{
+state = migrate(JSON.parse(JSON.stringify(snap)));
+historyView = null;
+updateHistoryBanner();
+if(restoreDate) currentDate = restoreDate;
+saveState();
+renderTabs();
+renderCurrentView();
+showToast("履歴の時点に復元しました");
+}, ()=>{
+state = migrate(JSON.parse(JSON.stringify(snap)));
+historyView = null;
+updateHistoryBanner();
+if(restoreDate) currentDate = restoreDate;
+saveState();
+renderTabs();
+renderCurrentView();
+showToast("履歴の時点に復元しました（履歴保存はスキップ）");
+});
+});
+}
+function openHistorySnapshot(fileId){
+if(!fileId) return;
+showToast("履歴を読み込んでいます…");
+postGoogleBackupApi("snapshot", { fileId }).then(data=>{
+if(data.classroomId && data.classroomId !== CLASSROOM_ID){
+showToast("別教室の履歴は表示できません", true);
+return;
+}
+if(!data.json || typeof data.json !== "object"){
+showToast("履歴データが空でした", true);
+return;
+}
+historyView = {
+fileId: data.fileId,
+fileName: data.fileName || "",
+savedAt: data.savedAt || "",
+kind: data.kind || "auto",
+targetDate: data.targetDate || currentDate,
+snapshotState: migrate(JSON.parse(JSON.stringify(data.json)))
+};
+if(historyView.targetDate) currentDate = historyView.targetDate;
+closeModal();
+currentTab = "seat";
+renderTabs();
+renderSeatView();
+updateHistoryBanner();
+}).catch(err=>{
+showToast(googleErrorMessage(err && err.message), true);
+});
+}
+function openLessonHistoryModal(){
+if(!getGoogleBackupConfig()){
+showToast("先に「設定・バックアップ」でGoogle連携を設定してください", true);
+return;
+}
+openModal(`
+<h3>授業履歴</h3>
+<p class="sub">Googleに保存された座席表の履歴です。日付を選んで「表示する」で、その時点の座席表を開けます。</p>
+<div id="lessonHistoryLoading" class="history-loading">履歴を読み込んでいます…</div>
+<div id="lessonHistoryList" class="history-list" hidden></div>
+<div class="modal-actions">
+<button class="btn" id="modalCancel">閉じる</button>
+</div>
+`, (modal)=>{
+modal.querySelector("#modalCancel").addEventListener("click", closeModal);
+postGoogleBackupApi("history").then(data=>{
+if(data.classroomId && data.classroomId !== CLASSROOM_ID){
+modal.querySelector("#lessonHistoryLoading").textContent = "別教室の履歴です。";
+return;
+}
+const groups = groupHistoryItems(data.items || []);
+const listEl = modal.querySelector("#lessonHistoryList");
+const loadEl = modal.querySelector("#lessonHistoryLoading");
+if(!groups.length){
+loadEl.textContent = "まだ履歴がありません。座席表を編集するか「授業完了として確定」を押すと保存されます。";
+return;
+}
+return Promise.all(groups.map(group=>{
+const top = group.items[0];
+if(!top || !top.fileId || group.targetDate === "unknown") return Promise.resolve(group);
+return postGoogleBackupApi("snapshot", { fileId: top.fileId }).then(snap=>{
+if(snap.classroomId && snap.classroomId !== CLASSROOM_ID) return group;
+const td = snap.targetDate || group.targetDate;
+const day = snap.json && snap.json.days && td ? snap.json.days[td] : null;
+group.previewBlocks = summarizeDayBlocks(day);
+return group;
+}).catch(()=> group);
+})).then(filledGroups=>{
+loadEl.hidden = true;
+listEl.hidden = false;
+listEl.innerHTML = filledGroups.map(group=>{
+const dateLabel = group.targetDate === "unknown" ? "日付不明" : formatHistoryDateLabel(group.targetDate);
+const blockLines = (group.previewBlocks || []).map(row=>
+`<li>${escapeHtml(row.time)}　${escapeHtml(row.subject)}　講師：${escapeHtml(row.teacher)}　生徒${row.studentCount}名</li>`
+).join("");
+const finalizedLine = group.finalizedAt
+? `<p class="history-finalized-note">授業完了：${escapeHtml(formatHistorySavedAt(group.finalizedAt))}に確定済み</p>`
+: "";
+const entriesHtml = group.items.map(item=>{
+const kind = historyKindLabel(item.kind);
+const saved = formatHistorySavedAt(item.savedAt);
+return `<div class="history-entry">
+<div class="history-entry-head">
+<span class="history-kind ${item.kind === "finalized" ? "finalized" : "auto"}">${escapeHtml(kind)}</span>
+<span class="history-saved-at">${escapeHtml(saved)}</span>
+</div>
+<button type="button" class="btn primary js-open-history" data-file-id="${escapeHtml(item.fileId)}">表示する</button>
+</div>`;
+}).join("");
+return `<section class="history-day-group">
+<h4>${escapeHtml(dateLabel)}</h4>
+${blockLines ? `<ul class="history-day-summary">${blockLines}</ul>` : ""}
+${finalizedLine}
+<div class="history-entries">${entriesHtml}</div>
+</section>`;
+}).join("");
+listEl.querySelectorAll(".js-open-history").forEach(btn=>{
+btn.addEventListener("click", ()=> openHistorySnapshot(btn.dataset.fileId));
+});
+});
+}).catch(err=>{
+modal.querySelector("#lessonHistoryLoading").textContent = googleErrorMessage(err && err.message);
+});
+});
+}
+function finalizeCurrentLesson(){
+if(historyView){ showToast("過去表示中は確定できません。「現在に戻る」を押してください。", true); return; }
+if(!getGoogleBackupConfig()){ showToast("先に「設定・バックアップ」でGoogle連携を設定してください", true); return; }
+confirmDialog("この座席表を授業実績として確定します。後から履歴で確認できます。よろしいですか？", ()=>{
+showToast("授業完了として保存しています…");
+const prev = loadGoogleBackupStatus();
+persistGoogleBackupStatus(Object.assign({}, prev, { phase: "saving" }));
+applyGoogleBackupUi();
+postGoogleBackupApi("finalizeLesson", { json: getLiveState(), targetDate: currentDate }).then(data=>{
+persistGoogleBackupStatus({
+phase: "ok",
+lastOkAt: data.updatedAt || new Date().toISOString(),
+lastError: "",
+lastFileName: data.fileName || ""
+});
+applyGoogleBackupUi();
+showToast("授業完了として確定しました");
+}).catch(err=>{
+persistGoogleBackupStatus({
+phase: "error",
+lastOkAt: prev.lastOkAt || "",
+lastError: (err && err.message) || "failed",
+lastFileName: prev.lastFileName || ""
+});
+applyGoogleBackupUi();
+showToast(googleErrorMessage(err && err.message), true);
+});
+});
 }
 function emptyBlock(seatCount=8){
 return {
@@ -519,7 +787,8 @@ backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop && onCancel) 
 });
 }
 function rosterStudentNames(selected){
-const names = state.students.map(s=> (s && s.name) ? String(s.name).trim() : "").filter(Boolean);
+const src = getDisplayState();
+const names = src.students.map(s=> (s && s.name) ? String(s.name).trim() : "").filter(Boolean);
 const unique = [];
 const seen = new Set();
 names.forEach(n=>{
@@ -618,44 +887,52 @@ const day = getOrCreateDay(currentDate);
 const wd = weekdayOf(currentDate);
 const dateObj = new Date(currentDate+"T00:00:00");
 const dateLabel = `${dateObj.getFullYear()}年${dateObj.getMonth()+1}月${dateObj.getDate()}日（${WEEKDAY_LABELS[wd]}）`;
+const viewingPast = isHistoryView();
 
 el.innerHTML = `
 <div class="panel page-head">
 <div class="seat-date-bar">
-<h2>${dateLabel}</h2>
+<h2>${dateLabel}${viewingPast ? ` <span class="history-view-badge">履歴表示</span>` : ""}</h2>
 <label class="date-field">日付
-<input type="date" id="datePicker" value="${currentDate}">
+<input type="date" id="datePicker" value="${currentDate}" ${viewingPast ? "disabled" : ""}>
 </label>
 </div>
-${imagesHtml()}
+${viewingPast ? "" : imagesHtml()}
 <div class="seat-toolbar">
+<div class="toolbar-group">
+<span class="toolbar-label">授業履歴</span>
+<div class="btn-row">
+<button class="btn" id="btnLessonHistory">授業履歴</button>
+<button class="btn primary" id="btnFinalizeLesson" ${viewingPast ? "disabled" : ""}>授業完了として確定</button>
+</div>
+</div>
 <div class="toolbar-group">
 <span class="toolbar-label">日付操作</span>
 <div class="btn-row">
-<button class="btn" id="btnCopyLastWeek">先週をコピー</button>
+<button class="btn" id="btnCopyLastWeek" ${viewingPast ? "disabled" : ""}>先週をコピー</button>
 </div>
 </div>
 <div class="toolbar-group">
 <span class="toolbar-label">座席操作</span>
 <div class="btn-row js-seat-actions">
-<button class="btn primary" id="btnAddBlock">＋ 授業枠を追加</button>
-<button class="btn danger" id="btnDeleteGroupRows">この日の集団行を削除</button>
-<button class="btn danger" id="btnDeleteAll">この日をすべて削除</button>
+<button class="btn primary" id="btnAddBlock" ${viewingPast ? "disabled" : ""}>＋ 授業枠を追加</button>
+<button class="btn danger" id="btnDeleteGroupRows" ${viewingPast ? "disabled" : ""}>この日の集団行を削除</button>
+<button class="btn danger" id="btnDeleteAll" ${viewingPast ? "disabled" : ""}>この日をすべて削除</button>
 </div>
 </div>
 <div class="toolbar-group">
 <span class="toolbar-label">共有操作</span>
 <div class="btn-row js-share-actions">
-<button class="btn" id="btnImportEweb">eWebから読み込む</button>
-<button class="btn" id="btnImportImage">画像から取り込み</button>
+<button class="btn" id="btnImportEweb" ${viewingPast ? "disabled" : ""}>eWebから読み込む</button>
+<button class="btn" id="btnImportImage" ${viewingPast ? "disabled" : ""}>画像から取り込み</button>
 <button class="btn" id="btnPrint">A3横で印刷</button>
-<button class="btn" id="btnPrintMulti">複数日を印刷</button>
+<button class="btn" id="btnPrintMulti" ${viewingPast ? "disabled" : ""}>複数日を印刷</button>
 </div>
 </div>
 </div>
 </div>
 
-<div class="preset-panel">
+${viewingPast ? "" : `<div class="preset-panel">
 <div>
 <div class="preset-title">基本曜日プリセット
 <small>曜日ごとのいつもの座席表を保存・呼び出し</small>
@@ -666,7 +943,7 @@ ${imagesHtml()}
 <button class="btn" id="btnLoadPreset">この曜日を呼び出す</button>
 <button class="btn primary" id="btnSavePreset">現在の表を${WEEKDAY_LABELS[wd]}曜日の基本に保存</button>
 </div>
-</div>
+</div>`}
 
 <div class="legend">
 <span><span class="swatch course"></span>講習</span>
@@ -683,17 +960,28 @@ ${subjectDatalist()}
 
 // weekday chips
 const grid = document.getElementById("weekdayGrid");
+if(grid){
+const presetSource = getDisplayState();
 grid.innerHTML = WEEKDAY_LABELS.map((label,i)=>{
-const hasPreset = !!(state.weekdayPresets[i] && state.weekdayPresets[i].blocks && state.weekdayPresets[i].blocks.length);
+const hasPreset = !!(presetSource.weekdayPresets[i] && presetSource.weekdayPresets[i].blocks && presetSource.weekdayPresets[i].blocks.length);
 return `<div class="weekday-chip ${i===wd?"selected":""} ${hasPreset?"has-preset":""}" data-wd="${i}">
 <span class="wd-label">${hasPreset?"登録済":"未登録"}</span>${label}
 </div>`;
 }).join("");
+}
 
-document.getElementById("datePicker").addEventListener("change", e=>{
+document.getElementById("btnLessonHistory").addEventListener("click", openLessonHistoryModal);
+document.getElementById("btnFinalizeLesson").addEventListener("click", finalizeCurrentLesson);
+
+const datePicker = document.getElementById("datePicker");
+if(datePicker && !viewingPast){
+datePicker.addEventListener("change", e=>{
 currentDate = e.target.value || todayStr();
 renderSeatView();
 });
+}
+updateHistoryBanner();
+if(!viewingPast){
 document.getElementById("btnAddBlock").addEventListener("click", ()=>{
 day.blocks.push(emptyBlock());
 saveState(); renderSeatView();
@@ -712,12 +1000,13 @@ day.blocks.forEach(b=> b.groupRows = []);
 saveState(); renderSeatView();
 });
 });
-document.getElementById("btnPrint").addEventListener("click", ()=> window.print());
 document.getElementById("btnPrintMulti").addEventListener("click", openMultiDayPrintModal);
 document.getElementById("btnImportImage").addEventListener("click", openImageImportModal);
 document.getElementById("btnImportEweb").addEventListener("click", openEwebImportModal);
 document.getElementById("btnCopyLastWeek").addEventListener("click", openCopyLastWeekModal);
-document.getElementById("btnLoadPreset").addEventListener("click", ()=>{
+const btnLoadPreset = document.getElementById("btnLoadPreset");
+if(btnLoadPreset){
+btnLoadPreset.addEventListener("click", ()=>{
 const preset = state.weekdayPresets[wd];
 if(!preset || !preset.blocks.length){ showToast(`${WEEKDAY_LABELS[wd]}曜日の基本形はまだ登録されていません`, true); return; }
 confirmDialog(`${WEEKDAY_LABELS[wd]}曜日の基本形をこの日に読み込みます。現在のこの日の内容は上書きされます。よろしいですか？`, ()=>{
@@ -726,19 +1015,26 @@ migrate(state);
 saveState(); renderSeatView();
 });
 });
-document.getElementById("btnSavePreset").addEventListener("click", ()=>{
+}
+const btnSavePreset = document.getElementById("btnSavePreset");
+if(btnSavePreset){
+btnSavePreset.addEventListener("click", ()=>{
 confirmDialog(`現在のこの日の座席表を「${WEEKDAY_LABELS[wd]}曜日の基本形」として保存します。よろしいですか？`, ()=>{
 state.weekdayPresets[wd] = JSON.parse(JSON.stringify(day));
 saveState(); renderSeatView();
 });
 });
+}
+if(grid){
 grid.addEventListener("click", (e)=>{
 const chip = e.target.closest(".weekday-chip");
 if(!chip) return;
 const targetWd = Number(chip.dataset.wd);
-// find next date with that weekday (for quick jump), or just inform
 showToast(`${WEEKDAY_LABELS[targetWd]}曜日の基本形は「この曜日を呼び出す」ボタンで、その曜日の日付を選んだ状態で読み込めます。`);
 });
+}
+}
+document.getElementById("btnPrint").addEventListener("click", ()=> window.print());
 
 renderBlocks(day, dateLabel);
 }
@@ -855,7 +1151,8 @@ ${groupRows}
 }
 
 function seatRowHtml(block, seat, si, dateStr){
-const teacherOptions = `<option value="">—</option>` + state.teachers.map(t=>`<option value="${escapeHtml(t.name)}" ${seat.teacher===t.name?"selected":""}>${escapeHtml(t.name)}</option>`).join("");
+const roster = getDisplayState();
+const teacherOptions = `<option value="">—</option>` + roster.teachers.map(t=>`<option value="${escapeHtml(t.name)}" ${seat.teacher===t.name?"selected":""}>${escapeHtml(t.name)}</option>`).join("");
 const studOpts = (selected)=> `<option value="">生徒を選択</option><option value="${NEW_STUDENT_VALUE}">＋ 新しい生徒を追加</option>` + rosterStudentNames(selected).map(name=>`<option value="${escapeHtml(name)}" ${selected===name?"selected":""}>${escapeHtml(name)}</option>`).join("");
 const soloMap = loadSoloMapForDate(dateStr || currentDate);
 const leftName = normSoloName(seat.left && seat.left.student);
@@ -903,7 +1200,8 @@ ${sideHtml(seat.right,"right", blockRight)}
 }
 
 function groupRowHtml(block, g, gi){
-const teacherOptions = `<option value="">—</option>` + state.teachers.map(t=>`<option value="${escapeHtml(t.name)}" ${g.teacher===t.name?"selected":""}>${escapeHtml(t.name)}</option>`).join("");
+const roster = getDisplayState();
+const teacherOptions = `<option value="">—</option>` + roster.teachers.map(t=>`<option value="${escapeHtml(t.name)}" ${g.teacher===t.name?"selected":""}>${escapeHtml(t.name)}</option>`).join("");
 const remainingStudents = rosterStudentNames().filter(name=> !g.students.includes(name));
 const chips = g.students.map(name=>`<span class="chip">${escapeHtml(name)}<button type="button" class="js-remove-gstudent" data-name="${escapeHtml(name)}">×</button></span>`).join("");
 return `
@@ -2273,16 +2571,16 @@ el.innerHTML = `
 <p class="sub">すべてのデータ（生徒名簿・講師名簿・座席配置・週ごとの座席表・曜日プリセット）をまとめてバックアップ・復元できます。</p>
 </div>
 <div class="panel settings-card" style="grid-column:1/-1;">
-<h3>Google自動バックアップ</h3>
-<p>座席表・名簿・設定を、この教室専用のGoogleドライブへ自動保存します。先生のGoogleログインは不要です。端末内の保存はそのまま残り、Google側は追加の控えです。</p>
+<h3>Google授業履歴</h3>
+<p>座席表・名簿・設定を、この教室専用のGoogleドライブへ自動保存します。座席表画面の「授業履歴」から過去の記録を確認できます。先生のGoogleログインは不要です。</p>
 <p><strong>教室ID：</strong><code>${escapeHtml(CLASSROOM_ID)}</code>（固定。別教室には変更できません）</p>
 <p><strong>WebアプリURL：</strong>${getGoogleBackupConfig() ? escapeHtml(getGoogleBackupConfig().webAppUrl) : "未設定"}</p>
 <p><strong>合言葉：</strong>${getGoogleBackupConfig() ? "この端末に保存済み" : "未設定"}</p>
 <div id="googleBackupStatusBox">${googleBackupStatusHtml(loadGoogleBackupStatus())}</div>
 <div class="btn-row" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:8px;">
 <button class="btn" id="btnGoogleBackupSetup">設定する</button>
-<button class="btn" id="btnGoogleBackupNow">今すぐバックアップ</button>
-<button class="btn primary" id="btnGoogleBackupRestore">Googleから復元</button>
+<button class="btn" id="btnGoogleBackupNow">今すぐ履歴保存</button>
+<button class="btn primary" id="btnGoogleBackupRestore">最新履歴から復元</button>
 </div>
 </div>
 <div class="settings-grid">
