@@ -376,7 +376,7 @@ state.days[dateStr] = { blocks: COMMON_TIME_PRESETS.map(()=>emptyBlock()) };
 return state.days[dateStr];
 }
 function historyKindLabel(kind){
-return kind === "finalized" ? "授業完了・確定" : "自動保存";
+return kind === "finalized" ? "保存した授業" : "自動保存";
 }
 function formatHistorySavedAt(iso){
 return formatBackupTime(iso);
@@ -548,7 +548,7 @@ const groups = groupHistoryItems(data.items || []);
 const listEl = modal.querySelector("#lessonHistoryList");
 const loadEl = modal.querySelector("#lessonHistoryLoading");
 if(!groups.length){
-loadEl.textContent = "まだ履歴がありません。座席表を編集するか「授業完了として確定」を押すと保存されます。";
+loadEl.textContent = "まだ履歴がありません。座席表を編集するか『この授業を保存』を押すと保存されます。";
 return;
 }
 return Promise.all(groups.map(group=>{
@@ -570,7 +570,7 @@ const blockLines = (group.previewBlocks || []).map(row=>
 `<li>${escapeHtml(row.time)}　${escapeHtml(row.subject)}　講師：${escapeHtml(row.teacher)}　生徒${row.studentCount}名</li>`
 ).join("");
 const finalizedLine = group.finalizedAt
-? `<p class="history-finalized-note">授業完了：${escapeHtml(formatHistorySavedAt(group.finalizedAt))}に確定済み</p>`
+? `<p class="history-finalized-note">この授業を保存：${escapeHtml(formatHistorySavedAt(group.finalizedAt))}に保存済み</p>`
 : "";
 const entriesHtml = group.items.map(item=>{
 const kind = historyKindLabel(item.kind);
@@ -600,10 +600,10 @@ modal.querySelector("#lessonHistoryLoading").textContent = googleErrorMessage(er
 });
 }
 function finalizeCurrentLesson(){
-if(historyView){ showToast("過去表示中は確定できません。「現在に戻る」を押してください。", true); return; }
+if(historyView){ showToast("過去表示中は保存できません。「現在に戻る」を押してください。", true); return; }
 if(!getGoogleBackupConfig()){ showToast("先に「設定・バックアップ」でGoogle連携を設定してください", true); return; }
-confirmDialog("この座席表を授業実績として確定します。後から履歴で確認できます。よろしいですか？", ()=>{
-showToast("授業完了として保存しています…");
+confirmDialog("この座席表を保存します。後から履歴で確認できます。よろしいですか？", ()=>{
+showToast("この授業を保存しています…");
 const prev = loadGoogleBackupStatus();
 persistGoogleBackupStatus(Object.assign({}, prev, { phase: "saving" }));
 applyGoogleBackupUi();
@@ -615,7 +615,7 @@ lastError: "",
 lastFileName: data.fileName || ""
 });
 applyGoogleBackupUi();
-showToast("授業完了として確定しました");
+showToast("この授業を保存しました");
 }).catch(err=>{
 persistGoogleBackupStatus({
 phase: "error",
@@ -902,7 +902,7 @@ el.innerHTML = `
 <div class="btn-row">
 <button class="btn" id="btnLessonHistory">授業履歴</button>
 <button class="btn" id="btnCopyLastWeek" ${viewingPast ? "disabled" : ""}>先週をコピー</button>
-<button class="btn primary" id="btnFinalizeLesson" ${viewingPast ? "disabled" : ""}>授業完了として確定</button>
+<button class="btn primary" id="btnFinalizeLesson" ${viewingPast ? "disabled" : ""}>この授業を保存</button>
 </div>
 </div>
 ${viewingPast ? "" : imagesHtml()}
