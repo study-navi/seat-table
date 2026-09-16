@@ -896,16 +896,13 @@ el.innerHTML = `
 <label class="date-field">日付
 <input type="date" id="datePicker" value="${currentDate}" ${viewingPast ? "disabled" : ""}>
 </label>
-</div>
-${viewingPast ? "" : imagesHtml()}
-<div class="seat-toolbar">
-<div class="toolbar-group">
-<span class="toolbar-label">授業履歴</span>
-<div class="btn-row">
+<div class="seat-date-actions">
 <button class="btn" id="btnLessonHistory">授業履歴</button>
 <button class="btn primary" id="btnFinalizeLesson" ${viewingPast ? "disabled" : ""}>授業完了として確定</button>
 </div>
 </div>
+${viewingPast ? "" : imagesHtml()}
+<div class="seat-toolbar">
 <div class="toolbar-group">
 <span class="toolbar-label">日付操作</span>
 <div class="btn-row">
