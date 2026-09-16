@@ -458,7 +458,7 @@ font-size:0.88em;
 }
 #view-seat .seat-toolbar{
 display:grid;
-grid-template-columns: repeat(3, minmax(0, 1fr));
+grid-template-columns: repeat(2, minmax(0, 1fr));
 gap: 12px;
 align-items:stretch;
 margin-bottom:0;

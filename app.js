@@ -898,17 +898,12 @@ el.innerHTML = `
 </label>
 <div class="seat-date-actions">
 <button class="btn" id="btnLessonHistory">授業履歴</button>
+<button class="btn" id="btnCopyLastWeek" ${viewingPast ? "disabled" : ""}>先週をコピー</button>
 <button class="btn primary" id="btnFinalizeLesson" ${viewingPast ? "disabled" : ""}>授業完了として確定</button>
 </div>
 </div>
 ${viewingPast ? "" : imagesHtml()}
 <div class="seat-toolbar">
-<div class="toolbar-group">
-<span class="toolbar-label">日付操作</span>
-<div class="btn-row">
-<button class="btn" id="btnCopyLastWeek" ${viewingPast ? "disabled" : ""}>先週をコピー</button>
-</div>
-</div>
 <div class="toolbar-group">
 <span class="toolbar-label">座席操作</span>
 <div class="btn-row js-seat-actions">
