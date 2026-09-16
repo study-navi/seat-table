@@ -896,7 +896,10 @@ el.innerHTML = `
 <label class="date-field">日付
 <input type="date" id="datePicker" value="${currentDate}" ${viewingPast ? "disabled" : ""}>
 </label>
-<div class="seat-date-actions">
+</div>
+<div class="seat-history-actions toolbar-group">
+<span class="toolbar-label">授業履歴</span>
+<div class="btn-row">
 <button class="btn" id="btnLessonHistory">授業履歴</button>
 <button class="btn" id="btnCopyLastWeek" ${viewingPast ? "disabled" : ""}>先週をコピー</button>
 <button class="btn primary" id="btnFinalizeLesson" ${viewingPast ? "disabled" : ""}>授業完了として確定</button>

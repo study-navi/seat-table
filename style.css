@@ -448,13 +448,11 @@ background:#fff;
 font-size:0.95em;
 color: var(--ink);
 }
-#view-seat .seat-date-actions{
-display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+#view-seat .seat-history-actions{
+margin-bottom: 12px;
 }
-#view-seat .seat-date-actions .btn{
-height: var(--control-h);
-padding: 0 12px;
-font-size:0.88em;
+#view-seat .seat-history-actions .btn-row{
+display:flex; flex-wrap:wrap; gap:8px;
 }
 #view-seat .seat-toolbar{
 display:grid;
