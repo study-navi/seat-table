@@ -201,6 +201,13 @@ max-height: 36vh; overflow:auto; border:1px solid var(--line); border-radius:8px
 .multi-date-list .opt{ margin:0 0 6px; }
 .multi-date-list .opt:last-child{ margin-bottom:0; }
 #multiDayPrint{ display: none !important; }
+/* 印刷前の収まり計算用。画面には出さず、A3実寸でレイアウトする */
+body.multi-day-print #multiDayPrint{
+display:block !important;
+position:fixed; left:-120vw; top:0;
+width: var(--paper-w); height: var(--paper-h);
+overflow:hidden; opacity:0; pointer-events:none; z-index:-1;
+}
 
 /* ---------- Seat table toolbar ---------- */
 .seat-toolbar{
@@ -894,7 +901,7 @@ padding:2mm 0;
 .sheet-header, .seat-row-wrap, .group-row-wrap,
 .print-preview-page .sheet-header, .print-preview-page .seat-row-wrap, .print-preview-page .group-row-wrap{
 min-width:0;
-grid-template-columns: 9mm 20mm var(--print-subj-col) var(--print-grade-col) minmax(var(--print-name-col), 1fr) var(--print-subj-col) var(--print-grade-col) minmax(var(--print-name-col), 1fr);
+grid-template-columns: 9mm 18mm minmax(0, var(--print-subj-col)) minmax(0, var(--print-grade-col)) minmax(min(var(--print-name-col), 16%), 1fr) minmax(0, var(--print-subj-col)) minmax(0, var(--print-grade-col)) minmax(min(var(--print-name-col), 16%), 1fr);
 }
 .th.side-left, .th.side-right{ grid-column: span 3; }
 .th.blank2{ grid-column: span 2; }
@@ -957,26 +964,32 @@ font-size:7pt; font-weight:700; color:#1b5e34; line-height:1.1;
 /* position:fixed だと紙面ではページ基準になり、プレビュー(absolute)と位置がずれる */
 .print-image{ display:block !important; position:absolute; z-index:2; }
 #view-print > .panel.page-head, #view-print > .print-settings-panel{ display:none !important; }
-/* 紙面は A3 実寸で名前幅を確保し、印刷ボックスを超えた分は 100% で切る。 */
+/* 印刷ボックス（@page 余白の内側）いっぱいに収め、固定mmではみ出さない */
+#view-seat{ width:100% !important; max-width:100% !important; overflow:hidden !important; padding:0 !important; }
+#view-seat .seat-history-actions,
+#view-seat .page-head .sub{ display:none !important; }
+#view-seat .page-head{ padding:0 !important; margin-bottom:3mm !important; border:none !important; }
 #view-print .print-preview-wrap{
 padding:0 !important; margin:0 !important;
 width:100% !important; max-width:100% !important;
 height:100% !important; overflow:hidden !important;
 }
 #view-print .print-preview-page{
-width: var(--paper-w) !important;
+width:100% !important;
 max-width:100% !important;
-height: var(--paper-h) !important;
+height:100% !important;
 max-height:100% !important;
 padding:0 !important; border:none !important; box-shadow:none !important;
 transform: none !important;
 overflow:hidden !important;
 box-sizing:border-box !important;
 }
-#view-print .print-preview-page .blocks{
-width:100% !important;
-max-width:100% !important;
-transform:none !important;
+#view-print .print-preview-page .blocks,
+body.multi-day-print .multi-print-page .blocks,
+#view-seat .blocks{
+transform: scale(var(--print-page-scale, 1));
+transform-origin: top left;
+width: calc(100% / var(--print-page-scale, 1));
 }
 .seat-row-wrap, .group-row-wrap{ min-height: var(--print-row-h, 0px); }
 .group-time-auto{ font-size:7.5pt; color:#000; white-space:normal; line-height:1.15; min-width:0; overflow-wrap:anywhere; }
@@ -993,13 +1006,16 @@ display:none !important;
 }
 body.multi-day-print #multiDayPrint{
 display:block !important;
+position:static !important; left:auto !important; top:auto !important;
+width:100% !important; height:100% !important;
+opacity:1 !important; z-index:auto !important; pointer-events:auto !important;
 }
 body.multi-day-print .multi-print-page{
 break-after: page;
 page-break-after: always;
-width: var(--paper-w) !important;
+width:100% !important;
 max-width:100% !important;
-height: var(--paper-h) !important;
+height:100% !important;
 max-height:100% !important;
 padding:0 !important; border:none !important; box-shadow:none !important;
 transform: none !important;

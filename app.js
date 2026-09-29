@@ -1029,7 +1029,7 @@ showToast(`${WEEKDAY_LABELS[targetWd]}曜日の基本形は「この曜日を呼
 });
 }
 }
-document.getElementById("btnPrint").addEventListener("click", ()=> window.print());
+document.getElementById("btnPrint").addEventListener("click", ()=> runMultiDayPrint([currentDate]));
 
 renderBlocks(day, dateLabel);
 }
@@ -2300,7 +2300,10 @@ root.innerHTML = "";
 window.removeEventListener("afterprint", cleanup);
 };
 window.addEventListener("afterprint", cleanup);
+requestAnimationFrame(function(){
+if(window.__fitPrintToPaper){ try{ window.__fitPrintToPaper(); }catch(e){} }
 window.print();
+});
 }
 
 function openMultiDayPrintModal(){
@@ -2449,7 +2452,7 @@ document.getElementById("previewDatePicker").addEventListener("change", (e)=>{
 currentDate = e.target.value || todayStr();
 renderPrintPreviewView();
 });
-document.getElementById("btnPrintFromPreview").addEventListener("click", ()=> window.print());
+document.getElementById("btnPrintFromPreview").addEventListener("click", ()=> runMultiDayPrint([currentDate]));
 document.getElementById("btnPrintMultiFromPreview").addEventListener("click", openMultiDayPrintModal);
 document.getElementById("rangeSubjectSize").addEventListener("input", (e)=>{
 ps.subjectSize = Number(e.target.value);
@@ -3683,6 +3686,60 @@ document.addEventListener("DOMContentLoaded", init);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inject);
   else { try { inject(); } catch(e){} }
   setInterval(function(){ try { inject(); } catch(e){} }, 1500);
+})();
+
+/* ==========================================================
+   印刷直前に紙面へ収める。固定mm幅や授業枠の高さで
+   コピー機の印字領域からはみ出すのを防ぐ。
+   ========================================================== */
+(function(){
+  var applied = [];
+  function userScale(){
+    var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--print-page-scale"));
+    return (isFinite(v) && v > 0.2) ? v : 1;
+  }
+  function boxes(){
+    if (document.body.classList.contains("multi-day-print")){
+      return Array.prototype.slice.call(document.querySelectorAll(".multi-print-page"));
+    }
+    var preview = document.querySelector("#view-print:not([hidden]) .print-preview-page");
+    if (preview) return [preview];
+    var seat = document.querySelector("#view-seat:not([hidden])");
+    return seat ? [seat] : [];
+  }
+  function fitBox(box){
+    var blocks = box.querySelector(".blocks");
+    if (!blocks) return;
+    blocks.style.transform = "none";
+    blocks.style.width = "100%";
+    var w = box.clientWidth || box.getBoundingClientRect().width;
+    var h = box.clientHeight || box.getBoundingClientRect().height;
+    if (!w || !h) return;
+    var need = Math.min(1, w / Math.max(1, blocks.scrollWidth), h / Math.max(1, blocks.scrollHeight));
+    var s = Math.min(userScale(), need);
+    if (s < 0.999){
+      blocks.style.transformOrigin = "top left";
+      blocks.style.transform = "scale(" + s + ")";
+      blocks.style.width = (100 / s) + "%";
+    }
+    applied.push(blocks);
+  }
+  function fit(){
+    window.__suspendPreviewFit = true;
+    applied = [];
+    boxes().forEach(fitBox);
+  }
+  function clear(){
+    applied.forEach(function(el){
+      el.style.transform = "";
+      el.style.width = "";
+    });
+    applied = [];
+    window.__suspendPreviewFit = false;
+  }
+  window.addEventListener("beforeprint", fit);
+  window.addEventListener("afterprint", clear);
+  window.__fitPrintToPaper = fit;
 })();
 
 /* ==========================================================
