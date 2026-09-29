@@ -766,11 +766,13 @@ visibility: hidden;
 /* 編集モード（「印刷と同じ見た目」をOFF）では画面で扱いやすい大きさに戻す */
 /* 編集モードでも用紙の高さは保つ。height:auto にすると % で置いた
    画像の基準が変わり、印刷時に位置がずれるため。 */
+@media screen{
 html[data-print-look="0"] .print-preview-page{
 /* 枠幅を超えると横スクロールバーが出るため、はみ出さない幅にする */
 width:min(1400px, 100%) !important; transform:none !important;
 }
 html[data-print-look="0"] .print-preview-wrap{ height:auto !important; overflow:auto !important; }
+}
 /* 1対1の斜線。セル内SVG実要素のみ（背景画像は使わない）。
    画面・プレビュー・印刷で同じ見た目。背景グラフィックOFFでも紙に出る。 */
 .cell.solo-blocked{
@@ -817,8 +819,10 @@ display: block;
 .print-preview-page .time-input span{ font-size:9pt; }
 .print-preview-page .seat-move, .print-preview-page .row-order, .print-preview-page .status-buttons,
 .print-preview-page .js-remove-gstudent, .print-preview-page .add-student-chip{ display:none !important; }
+@media screen{
 .print-preview-page .sheet-header, .print-preview-page .seat-row-wrap, .print-preview-page .group-row-wrap{
 grid-template-columns: 32px 90px 84px 40px minmax(0,1fr) 84px 40px minmax(0,1fr);
+}
 }
 .print-preview-page .th{ font-size:9px; padding:3px; }
 .print-preview-page .cell{ min-height:34px; padding:3px 4px; }
@@ -832,7 +836,7 @@ grid-template-columns: 32px 90px 84px 40px minmax(0,1fr) 84px 40px minmax(0,1fr)
 .print-preview-page .print-image{ display:block; position:absolute; z-index:2; touch-action:none; }
 .print-preview-page .page-head, .print-preview-page .preview-blocks{ position:relative; z-index:1; }
 
-@media (max-width: 860px){
+@media screen and (max-width: 860px){
 .print-preview-page{ width:100%; padding:14px; }
 }
 
@@ -884,7 +888,11 @@ padding:2mm 0;
 .lesson-block[data-time=""]{ grid-template-columns: 1fr; }
 .lesson-block[data-time=""]::before{ display:none !important; }
 .lesson-block[data-time=""] .sheet-wrap{ grid-column: 1; }
-.sheet-header, .seat-row-wrap, .group-row-wrap{ min-width:0; grid-template-columns: 9mm 20mm var(--print-subj-col) var(--print-grade-col) minmax(0,1fr) var(--print-subj-col) var(--print-grade-col) minmax(0,1fr); }
+.sheet-header, .seat-row-wrap, .group-row-wrap,
+.print-preview-page .sheet-header, .print-preview-page .seat-row-wrap, .print-preview-page .group-row-wrap{
+min-width:0;
+grid-template-columns: 9mm 20mm var(--print-subj-col) var(--print-grade-col) minmax(0,1fr) var(--print-subj-col) var(--print-grade-col) minmax(0,1fr);
+}
 .th.side-left, .th.side-right{ grid-column: span 3; }
 .th.blank2{ grid-column: span 2; }
 .th{ font-size:6.5pt; padding:0.8mm; background:#f4f4f4; border:0.5pt solid #bbb; }
@@ -947,9 +955,10 @@ font-size:7pt; font-weight:700; color:#1b5e34; line-height:1.1;
 .print-image{ display:block !important; position:absolute; z-index:2; }
 #view-print > .panel.page-head, #view-print > .print-settings-panel{ display:none !important; }
 #view-print .print-preview-wrap{ padding:0; margin:0; }
-/* 紙幅いっぱいに使う。全体の大きさはスライダー(--print-page-scale)で調整 */
+/* 紙面は A3 の実寸（--paper-w）で組む。width:100% だと印刷ビューポート
+   （画面幅）に縮み、生徒名列が潰れる。縮尺は中身の transform で行う。 */
 #view-print .print-preview-page{
-width: calc(100% / var(--print-page-scale, 1)) !important;
+width: var(--paper-w) !important;
 padding:0 !important; border:none !important; box-shadow:none !important;
 }
 /* 印刷では画面用のフィット表示と縦横比指定を解除する */
@@ -977,7 +986,7 @@ display:block !important;
 body.multi-day-print .multi-print-page{
 break-after: page;
 page-break-after: always;
-width: calc(100% / var(--print-page-scale, 1)) !important;
+width: var(--paper-w) !important;
 height: var(--paper-h) !important;
 padding:0 !important; border:none !important; box-shadow:none !important;
 transform: none !important;
