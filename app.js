@@ -2449,6 +2449,7 @@ ${day.blocks.map((block,bi)=> blockHtml(block, bi, currentDate)).join("")}
 applyPrintCssVars();
 bindImageDrag();
 if(window.__repaintSolo){ try{ window.__repaintSolo(); }catch(e){} }
+if(window.__syncPrintPreview){ try{ window.__syncPrintPreview(); }catch(e){} }
 
 document.getElementById("previewDatePicker").addEventListener("change", (e)=>{
 currentDate = e.target.value || todayStr();
@@ -2705,6 +2706,7 @@ document.addEventListener("DOMContentLoaded", init);
       try { STORAGE.setItem(KEY, String(nv)); } catch(e){}
       apply(nv);
       lab.textContent = text(nv);
+      if (window.__syncPrintPreview){ try{ window.__syncPrintPreview(); }catch(e){} }
     });
     row.appendChild(lab);
     row.appendChild(input);
@@ -3729,10 +3731,19 @@ document.addEventListener("DOMContentLoaded", init);
     blocks.style.transform = "none";
     blocks.style.width = "100%";
     var paper = paperPx();
-    var w = box.clientWidth || box.getBoundingClientRect().width || paper.w;
-    var h = box.clientHeight || box.getBoundingClientRect().height || paper.h;
+    var w = paper.w;
+    var h = paper.h;
     var head = box.querySelector(".page-head");
-    var headH = head ? head.getBoundingClientRect().height : 0;
+    var headH = 0;
+    if (head){
+      var pageScale = 1;
+      var tr = getComputedStyle(box).transform;
+      if (tr && tr !== "none"){
+        var m = tr.match(/matrix\(([^,]+)/);
+        if (m) pageScale = Math.abs(parseFloat(m[1])) || 1;
+      }
+      headH = head.getBoundingClientRect().height / pageScale;
+    }
     var availW = Math.max(1, w);
     var availH = Math.max(1, h - headH);
     var need = Math.min(1, availW / Math.max(1, blocks.scrollWidth), availH / Math.max(1, blocks.scrollHeight));
@@ -3743,23 +3754,39 @@ document.addEventListener("DOMContentLoaded", init);
     blocks.style.transform = "scale(" + s + ")";
     blocks.style.width = (100 / s) + "%";
     applied.push(blocks);
+    return blocks;
   }
   function fit(){
     window.__suspendPreviewFit = true;
     applied = [];
     boxes().forEach(fitBox);
   }
+  function syncPreview(){
+    var preview = document.querySelector("#view-print:not([hidden]) .print-preview-page");
+    if (!preview) return;
+    applied = applied.filter(function(el){ return el && el.isConnected && !preview.contains(el); });
+    fitBox(preview);
+    window.__suspendPreviewFit = false;
+    window.dispatchEvent(new Event("resize"));
+  }
   function clear(){
     applied.forEach(function(el){
+      if (!el || !el.isConnected) return;
+      if (el.closest && el.closest("#view-print")) return;
       el.style.transform = "";
       el.style.width = "";
     });
-    applied = [];
+    applied = applied.filter(function(el){ return el && el.isConnected && el.style.transform; });
     window.__suspendPreviewFit = false;
+    syncPreview();
   }
   window.addEventListener("beforeprint", fit);
   window.addEventListener("afterprint", clear);
   window.__fitPrintToPaper = fit;
+  window.__syncPrintPreview = syncPreview;
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(syncPreview, 200); });
+  else setTimeout(syncPreview, 200);
+  setInterval(function(){ try { syncPreview(); } catch(e){} }, 1500);
 })();
 
 /* ==========================================================
