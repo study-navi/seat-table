@@ -2301,8 +2301,10 @@ window.removeEventListener("afterprint", cleanup);
 };
 window.addEventListener("afterprint", cleanup);
 requestAnimationFrame(function(){
+requestAnimationFrame(function(){
 if(window.__fitPrintToPaper){ try{ window.__fitPrintToPaper(); }catch(e){} }
 window.print();
+});
 });
 }
 
@@ -3504,7 +3506,7 @@ document.addEventListener("DOMContentLoaded", init);
       st.id = SID;
       document.head.appendChild(st);
     }
-    st.textContent = "@page{ size: A3 " + v + "; margin: 8mm; }";
+    st.textContent = "@page{ size: A3 " + v + "; margin: 10mm; }";
   }
   function inject(){
     var bar = document.querySelector(".print-panel-toggle");
@@ -3694,9 +3696,23 @@ document.addEventListener("DOMContentLoaded", init);
    ========================================================== */
 (function(){
   var applied = [];
+  /* コピー機は @page 余白より内側しか印字できない。実寸ぴったりだと必ずはみ出す。 */
+  var SAFETY = 0.86;
   function userScale(){
     var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--print-page-scale"));
     return (isFinite(v) && v > 0.2) ? v : 1;
+  }
+  function paperPx(){
+    var cs = getComputedStyle(document.documentElement);
+    var mm = function(name){
+      var n = parseFloat(cs.getPropertyValue(name));
+      return isFinite(n) && n > 0 ? n : 0;
+    };
+    var px = 96 / 25.4;
+    return {
+      w: (mm("--paper-w") || 404) * px,
+      h: (mm("--paper-h") || 281) * px
+    };
   }
   function boxes(){
     if (document.body.classList.contains("multi-day-print")){
@@ -3712,16 +3728,20 @@ document.addEventListener("DOMContentLoaded", init);
     if (!blocks) return;
     blocks.style.transform = "none";
     blocks.style.width = "100%";
-    var w = box.clientWidth || box.getBoundingClientRect().width;
-    var h = box.clientHeight || box.getBoundingClientRect().height;
-    if (!w || !h) return;
-    var need = Math.min(1, w / Math.max(1, blocks.scrollWidth), h / Math.max(1, blocks.scrollHeight));
-    var s = Math.min(userScale(), need);
-    if (s < 0.999){
-      blocks.style.transformOrigin = "top left";
-      blocks.style.transform = "scale(" + s + ")";
-      blocks.style.width = (100 / s) + "%";
-    }
+    var paper = paperPx();
+    var w = box.clientWidth || box.getBoundingClientRect().width || paper.w;
+    var h = box.clientHeight || box.getBoundingClientRect().height || paper.h;
+    var head = box.querySelector(".page-head");
+    var headH = head ? head.getBoundingClientRect().height : 0;
+    var availW = Math.max(1, w);
+    var availH = Math.max(1, h - headH);
+    var need = Math.min(1, availW / Math.max(1, blocks.scrollWidth), availH / Math.max(1, blocks.scrollHeight));
+    var s = Math.min(userScale(), need) * SAFETY;
+    if (s < 0.35) s = 0.35;
+    if (s > 1) s = 1;
+    blocks.style.transformOrigin = "top left";
+    blocks.style.transform = "scale(" + s + ")";
+    blocks.style.width = (100 / s) + "%";
     applied.push(blocks);
   }
   function fit(){

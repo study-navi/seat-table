@@ -863,7 +863,7 @@ grid-template-columns: 32px 90px 84px 40px minmax(0,1fr) 84px 40px minmax(0,1fr)
    自前で margin:0 + padding にすると、コピー機が本当の意味の
    フチなし印刷に対応していない場合、ドライバ側が独自の余白を
    強制してきて、かえって内容がずれてしまう。 */
-@page{ size: A3 landscape; margin: 8mm; }
+@page{ size: A3 landscape; margin: 10mm; }
 html,body{ background:#fff; width:100%; height:100%; overflow:hidden; }
 body, main{ margin:0; padding:0; background:#fff; max-width:100%; }
 .topbar, .tabs, .preset-panel, .legend, .seat-toolbar, .date-field, .btn, .toast, .status-buttons, .remove-student, .seat-move, .row-order{
