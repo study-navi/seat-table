@@ -1088,21 +1088,29 @@ const clip = id + "-clip";
 return `<svg class="solo-slash-mark" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" overflow="hidden"><defs><clipPath id="${clip}" clipPathUnits="objectBoundingBox"><rect width="1" height="1"/></clipPath><pattern id="${id}" patternUnits="userSpaceOnUse" width="18" height="18"><path d="M-2 20 L20 -2" stroke="#000" stroke-width="0.9" fill="none"/></pattern></defs><rect width="100%" height="100%" fill="url(#${id})" clip-path="url(#${clip})"/></svg>`;
 }
 
+function timeRangeParts(time){
+const parts = String(time || "").split(/[〜～~\-－ー]/);
+const start = ewebClock(parts[0]) || String(parts[0] || "").trim();
+const end = ewebClock(parts[1]) || String(parts[1] || "").trim();
+return [start, end];
+}
 function blockHtml(block, bi, dateStr){
 const seatRows = block.seats.map((seat,si)=> seatRowHtml(block, seat, si, dateStr)).join("");
 const groupRows = block.groupRows.map((g,gi)=> groupRowHtml(block, g, gi)).join("");
+const timeParts = timeRangeParts(block.time);
+const timeAttr = (timeParts[0] && timeParts[1]) ? (timeParts[0] + "〜" + timeParts[1]) : (/[0-9]/.test(block.time||"") ? block.time : "");
 
 return `
-<div class="lesson-block" data-block="${block.id}" data-time="${escapeHtml(/[0-9]/.test(block.time||'') ? block.time : '')}">
+<div class="lesson-block" data-block="${block.id}" data-time="${escapeHtml(timeAttr)}">
 <div class="block-head">
 <div class="block-head-left">
 <span class="block-index">枠${bi+1}</span>
 <div class="block-teachers">${escapeHtml(blockTeachersLabel(block))}</div>
 <div class="time-input">
 <span>時間帯</span>
-<input type="time" class="js-time-start" value="${(block.time.split("〜")[0]||"").trim()}">
+<input type="time" class="js-time-start" value="${escapeHtml(timeParts[0])}">
 <span>〜</span>
-<input type="time" class="js-time-end" value="${(block.time.split("〜")[1]||"").trim()}">
+<input type="time" class="js-time-end" value="${escapeHtml(timeParts[1])}">
 </div>
 <div class="time-choice">
 <select class="js-time-preset">
@@ -1606,19 +1614,67 @@ return String(raw || "")
 }
 function parseEwebSubject(raw){
 const s = normalizeEwebSubjectText(raw);
-const m = s.match(/^(講|通)\s*[<\(\[【]([^>\)\]】]+)[>\)\]】]$/);
+const m = s.match(/^(講|通|振替|振)\s*[<\(\[【]([^>\)\]】]+)[>\)\]】]$/);
 if(!m) return {subject: s, status: "normal"};
 const kind = m[1], code = m[2].replace(/\s+/g, "");
 const subject = EWEB_SUBJECT_ABBR[code] || code;
-return {subject, status: kind === "講" ? "course" : "normal"};
+let status = "normal";
+if(kind === "講") status = "course";
+else if(kind === "振" || kind === "振替") status = "transfer";
+return {subject, status};
 }
-/* 1対1は通＋山括弧。通(数)は1対2、講(数)は講習、集団は groups 側。
+/* 1対1は山括弧。通(数)・振(数)は1対2、講(数)は講習、集団は groups 側。
    全角の ＜国＞ や 〈国〉 も山括弧として扱う。 */
 function isEwebSoloSubject(raw){
-return /^通\s*<[^>]+>$/.test(normalizeEwebSubjectText(raw));
+return /^(?:通|振替|振)\s*<[^>]+>$/.test(normalizeEwebSubjectText(raw));
 }
 function isEwebPairSubject(raw){
-return /^通\s*\([^)]+\)$/.test(normalizeEwebSubjectText(raw));
+return /^(?:通|振替|振)\s*\([^)]+\)$/.test(normalizeEwebSubjectText(raw));
+}
+/* eWebの振替は科目の「振」だけでなく、state:3 や reschedule_class_date で来る。
+   state は数値だったり文字列 "3" だったりする。コメント欄に「振替」は入らない。 */
+function ewebScheduleKind(it){
+if(!it) return "";
+const raw = it.raw || {};
+if(Number(raw.state) === 3) return "transfer";
+if(raw.reschedule_class_date) return "transfer";
+if(it.flags && it.flags.length) return "transfer";
+const subj = normalizeEwebSubjectText(ewebItemSubject(it));
+if(/振替/.test(subj) || /^振\s*[<(【\[]/.test(subj)) return "transfer";
+const keys = Object.keys(raw);
+for(let i = 0; i < keys.length; i++){
+const v = raw[keys[i]];
+if(v == null || typeof v === "object") continue;
+if(/振替/.test(String(v))) return "transfer";
+}
+return "";
+}
+/* 8:30 のように時が1桁だと、時刻入力が空になり振替の照合も外れる。HH:MM に揃える。 */
+function ewebClock(value){
+const m = String(value || "").match(/(\d{1,2})\D+(\d{2})/);
+if(!m) return "";
+const h = Number(m[1]), min = Number(m[2]);
+if(!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return "";
+return ("0" + h).slice(-2) + ":" + ("0" + min).slice(-2);
+}
+function ewebTimeRange(start, end){
+const a = ewebClock(start), b = ewebClock(end);
+return (a && b) ? (a + "〜" + b) : "";
+}
+function ewebStartMinutes(koma){
+const m = String((koma && (koma.start || (koma.raw && koma.raw.start))) || "").match(/(\d{1,2})\D+(\d{2})/);
+if(!m) return 24 * 60 + 1;
+return Number(m[1]) * 60 + Number(m[2]);
+}
+function ewebSideFromItem(it){
+const parsed = parseEwebSubject(ewebItemSubject(it));
+const kind = ewebScheduleKind(it);
+return {
+student: normalizeName(it.student_name || ""),
+subject: parsed.subject,
+grade: it.grade || it.student_grade || "",
+status: kind === "transfer" ? "transfer" : parsed.status
+};
 }
 function ewebItemSubject(it){
 if(!it) return "";
@@ -1708,15 +1764,11 @@ groupsByKoma[g.koma_id].push(g);
 });
 
 const komaIds = new Set([...Object.keys(byKoma), ...Object.keys(groupsByKoma)].map(Number));
-const orderedKomaIds = Array.from(komaIds).sort((a,b)=>{
-const sa = (komaMap[a] && komaMap[a].start) || "99:99";
-const sb = (komaMap[b] && komaMap[b].start) || "99:99";
-return sa.localeCompare(sb);
-});
+const orderedKomaIds = Array.from(komaIds).sort((a,b)=> ewebStartMinutes(komaMap[a]) - ewebStartMinutes(komaMap[b]));
 
 const blocks = orderedKomaIds.map(komaId=>{
 const koma = komaMap[komaId] || {};
-const block = { id: uid(), time: (koma.start && koma.end) ? `${koma.start}〜${koma.end}` : "時間を入力", seats: [], groupRows: [] };
+const block = { id: uid(), time: ewebTimeRange(koma.start, koma.end) || "時間を入力", seats: [], groupRows: [] };
 
 const items = byKoma[komaId] || [];
 const byTeacher = {};
@@ -1733,28 +1785,30 @@ list.forEach(it=> { if(isEwebSoloItem(it, koma)) solos.push(it); else rest.push(
 function pushIndividualSeat(leftIt, rightIt){
 const seat = emptySeat(block.seats.length+1);
 seat.teacher = teacherName;
-if(leftIt){
-const p0 = parseEwebSubject(ewebItemSubject(leftIt));
-seat.left = {student:normalizeName(leftIt.student_name||""), subject:p0.subject, grade:leftIt.grade||leftIt.student_grade||"", status:p0.status};
-}
-if(rightIt){
-const p1 = parseEwebSubject(ewebItemSubject(rightIt));
-seat.right = {student:normalizeName(rightIt.student_name||""), subject:p1.subject, grade:rightIt.grade||rightIt.student_grade||"", status:p1.status};
-}
+if(leftIt) seat.left = ewebSideFromItem(leftIt);
+if(rightIt) seat.right = ewebSideFromItem(rightIt);
 block.seats.push(seat);
 }
-/* PS1 / 通<科目> は1人で1席。同じ講師の別生徒と1対2にまとめない。 */
+/* PS1 / 通<科目> は1人で1席。同じ講師の別生徒と1対2にまとめない。
+   振替は普段の2人の後ろに付くことが多く、3人目以降を集団行へ入れると
+   振替ボタンのない行になって表に出ない。振替だけは席を足す。 */
 solos.forEach(it=> pushIndividualSeat(it, null));
-if(rest[0]){
-pushIndividualSeat(rest[0], rest[1] || null);
-if(rest.length>2){
-const p2 = parseEwebSubject(ewebItemSubject(rest[2]));
+const overflow = rest.slice(2);
+const transferOverflow = [];
+const groupOverflow = [];
+overflow.forEach(it=>{
+if(ewebScheduleKind(it) === "transfer") transferOverflow.push(it);
+else groupOverflow.push(it);
+});
+if(rest[0]) pushIndividualSeat(rest[0], rest[1] || null);
+transferOverflow.forEach(it=> pushIndividualSeat(it, null));
+if(groupOverflow.length){
+const p2 = parseEwebSubject(ewebItemSubject(groupOverflow[0]));
 block.groupRows.push({
 id: uid(), seatNumber: "", name: "", teacher: teacherName,
 subject: p2.subject,
-students: rest.slice(2).map(x=>normalizeName(x.student_name)).filter(Boolean)
+students: groupOverflow.map(x=>normalizeName(x.student_name)).filter(Boolean)
 });
-}
 }
 });
 
@@ -3926,6 +3980,36 @@ document.addEventListener("DOMContentLoaded", init);
   var KEY = "seat-table-substitutes";
   function norm(s){ return String(s || "").replace(/[\s\u3000]+/g, ""); }
   function digits(s){ return String(s || "").replace(/[^0-9]/g, ""); }
+  /* 17:10 と 17:10:00 を同じコマとして照合する。秒まで連結すると取りこぼす。 */
+  function hhmm(t){
+    var m = String(t || "").match(/(\d{1,2})\D+(\d{2})/);
+    if (!m) return "";
+    return ("0" + m[1]).slice(-2) + m[2];
+  }
+  function pairKey(start, end){
+    var a = hhmm(start), b = hhmm(end);
+    return (a && b) ? (a + b) : "";
+  }
+  function blockKey(timeStr){
+    var parts = String(timeStr || "").split(/[〜～~\-－ー]/);
+    if (parts.length < 2) return "";
+    return pairKey(parts[0], parts[1]);
+  }
+  /* 以前の保存は「8:30」を 830 のまま連結している。08:30 に直したあとでも当たるようにする。 */
+  function loosePart(t){
+    var m = String(t || "").match(/(\d{1,2})\D+(\d{2})/);
+    if (!m) return "";
+    return String(Number(m[1])) + m[2];
+  }
+  function looseKey(start, end){
+    var a = loosePart(start), b = loosePart(end);
+    return (a && b) ? (a + b) : "";
+  }
+  function looseBlockKey(timeStr){
+    var parts = String(timeStr || "").split(/[〜～~\-－ー]/);
+    if (parts.length < 2) return "";
+    return looseKey(parts[0], parts[1]);
+  }
   function load(){ try { return JSON.parse(STORAGE.getItem(KEY)) || {}; } catch(e){ return {}; } }
   function absorb(text){
     var p = null;
@@ -3940,15 +4024,16 @@ document.addEventListener("DOMContentLoaded", init);
     for (i = 0; i < p.items.length; i++){
       var it = p.items[i];
       if (!it) continue;
-      var raw = it.raw || {};
-      var st = raw.state;
-      var kind = "";
-      if (st === 3 || raw.reschedule_class_date) kind = "transfer";
-      else if (it.flags && it.flags.length) kind = "transfer";
+      var kind = (typeof ewebScheduleKind === "function") ? ewebScheduleKind(it) : "";
       if (!kind) continue;
       var k = byId[it.koma_id];
-      var timeKey = k ? (digits(k.start) + digits(k.end)) : "";
-      map[norm(it.student_name) + "@" + timeKey] = kind;
+      var nameKey = norm(it.student_name);
+      var timeKey = k ? pairKey(k.start, k.end) : "";
+      var legacy = k ? (digits(k.start) + digits(k.end)) : "";
+      var loose = k ? looseKey(k.start, k.end) : "";
+      map[nameKey + "@" + timeKey] = kind;
+      if (legacy && legacy !== timeKey) map[nameKey + "@" + legacy] = kind;
+      if (loose && loose !== timeKey && loose !== legacy) map[nameKey + "@" + loose] = kind;
       n++;
     }
     var all = load();
@@ -3976,18 +4061,26 @@ document.addEventListener("DOMContentLoaded", init);
     return inp ? inp.value : "";
   }
   function mark(){
-    var cells = document.querySelectorAll(".student-cell"), i;
+    var cells = document.querySelectorAll("#view-seat .student-cell"), i;
     for (i = 0; i < cells.length; i++){
       var cell = cells[i];
       var sel = cell.querySelector("select");
       if (!sel || !sel.value) continue;
       var blk = cell.closest ? cell.closest(".lesson-block") : null;
-      var timeKey = blk ? digits(blk.getAttribute("data-time")) : "";
+      var rawTime = blk ? blk.getAttribute("data-time") : "";
+      var timeKey = blockKey(rawTime);
+      var legacy = digits(rawTime);
       var m = load()[dateOf(cell)];
       if (!m) continue;
       var name = norm(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : "");
       var kind = m[name + "@" + timeKey];
+      if (!kind && legacy !== timeKey) kind = m[name + "@" + legacy];
+      var loose = looseBlockKey(rawTime);
+      if (!kind && loose && loose !== timeKey && loose !== legacy) kind = m[name + "@" + loose];
       if (!kind) continue;
+      /* 取込時に既に振替が付いている席は、トグルで消さない。 */
+      if (kind === "transfer" && cell.classList.contains("status-transfer")) continue;
+      if (kind === "absent" && cell.classList.contains("status-absent")) continue;
       /* cell.parentElement は行全体で左右の生徒のボタンが並ぶため、
          そこから探すと隣の生徒のボタンを押してしまう。cell自身の範囲に限定する。 */
       var btns = cell.querySelectorAll("button");

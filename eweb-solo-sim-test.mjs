@@ -46,7 +46,7 @@ vm.runInContext(helpers + "\n" + eweb, ctx);
 
 const {
   parseEwebSubject, isEwebSoloSubject, isEwebSoloItem, ewebSoloDisplaySubject,
-  soloMapFromEwebPayload, saveEwebSoloMap, soloComboKey, buildDayFromEwebPayload
+  ewebScheduleKind, soloMapFromEwebPayload, saveEwebSoloMap, soloComboKey, buildDayFromEwebPayload
 } = ctx;
 
 const SEP = "\u2016";
@@ -64,6 +64,12 @@ check("parseEwebSubject(通<国>) → 国語", parseEwebSubject("通<国>").subj
 check("parseEwebSubject(通<数>) → 数学", parseEwebSubject("通<数>").subject === "数学", parseEwebSubject("通<数>").subject);
 check("parseEwebSubject(通(数)) → 数学", parseEwebSubject("通(数)").subject === "数学", parseEwebSubject("通(数)").subject);
 check("parseEwebSubject(講(数)) → 数学 / course", parseEwebSubject("講(数)").subject === "数学" && parseEwebSubject("講(数)").status === "course");
+check("parseEwebSubject(振(数)) → 数学 / transfer", parseEwebSubject("振(数)").subject === "数学" && parseEwebSubject("振(数)").status === "transfer");
+check("parseEwebSubject(振替<国>) → 国語 / transfer", parseEwebSubject("振替<国>").subject === "国語" && parseEwebSubject("振替<国>").status === "transfer");
+check("isEwebSoloSubject(振<国>)", isEwebSoloSubject("振<国>"));
+check("isEwebSoloSubject(振(数)) は false", !isEwebSoloSubject("振(数)"));
+check("state が文字列 3 でも振替", ewebScheduleKind({ subject: "通(数)", raw: { state: "3" } }) === "transfer");
+check("通常の state 1 は振替ではない", ewebScheduleKind({ subject: "通(数)", raw: { state: 1 } }) === "");
 
 check("isEwebSoloSubject(通<国>)", isEwebSoloSubject("通<国>"));
 check("isEwebSoloSubject(通<数>)", isEwebSoloSubject("通<数>"));
@@ -152,6 +158,57 @@ check("分けた席の相手側は空", !!(seatsTwo[0] && !seatsTwo[0].right.stu
 check("2人を1席にまとめない", seatsTwo.every(s => !(s.left.student && s.right.student)));
 const mapTwo = soloMapFromEwebPayload(payloadTwoSolos);
 check("同じ講師の2件とも1対1保存", mapTwo[soloComboKey("山田 太郎", "国語")] === 1 && mapTwo[soloComboKey("佐藤 花子", "数学")] === 1, keysOf(mapTwo).join(","));
+
+const payloadTransferThird = {
+  date: "2026-11-18",
+  komas: [{ id: 9, name: "A", start: "17:10:00", end: "18:40:00" }],
+  items: [
+    { koma_id: 9, teacher_name: "講師A", student_name: "通常 一郎", grade: "中1", subject: "通(数)", pos: 1, raw: { state: 1 } },
+    { koma_id: 9, teacher_name: "講師A", student_name: "通常 二郎", grade: "中1", subject: "通(英)", pos: 2, raw: { state: 1 } },
+    { koma_id: 9, teacher_name: "講師A", student_name: "振替 三郎", grade: "中2", subject: "通(国)", pos: 3, raw: { state: "3", reschedule_class_date: "2026-11-11" } }
+  ]
+};
+const dayTransfer = buildDayFromEwebPayload(payloadTransferThird);
+const seatsTransfer = (dayTransfer.blocks[0] && dayTransfer.blocks[0].seats) || [];
+const groupsTransfer = (dayTransfer.blocks[0] && dayTransfer.blocks[0].groupRows) || [];
+const transferSeat = seatsTransfer.find(s => s.left && s.left.student === "振替 三郎");
+check("3人目の振替は席になる", !!transferSeat, "seats=" + seatsTransfer.length);
+check("3人目の振替ステータスが付く", !!(transferSeat && transferSeat.left.status === "transfer"), transferSeat && transferSeat.left.status);
+check("振替生徒を集団行に入れない", !groupsTransfer.some(g => (g.students || []).indexOf("振替 三郎") >= 0));
+check("普段の2人は1席のまま", seatsTransfer.some(s => s.left && s.left.student === "通常 一郎" && s.right && s.right.student === "通常 二郎" && s.left.status === "normal"));
+
+const payloadTransferSolo = {
+  date: "2026-11-18",
+  komas: [{ id: 1, start: "17:10", end: "18:40" }],
+  items: [{ koma_id: 1, teacher_name: "講師A", student_name: "山田 太郎", grade: "中3", subject: "通<国>", pos: 1, raw: { state: 3 } }]
+};
+const daySoloTransfer = buildDayFromEwebPayload(payloadTransferSolo);
+const soloTransferSeat = daySoloTransfer.blocks[0].seats[0];
+check("1対1の振替は科目を残して振替になる", soloTransferSeat.left.subject === "国語" && soloTransferSeat.left.status === "transfer" && !soloTransferSeat.right.student);
+
+const payloadCourseTransfer = {
+  date: "2026-11-18",
+  komas: [{ id: 1, start: "17:10", end: "18:40" }],
+  items: [{ koma_id: 1, teacher_name: "講師A", student_name: "高橋 次郎", subject: "講(数)", pos: 1, raw: { state: 3 } }]
+};
+const courseTransferSeat = buildDayFromEwebPayload(payloadCourseTransfer).blocks[0].seats[0];
+check("講習の振替は振替として出す", courseTransferSeat.left.subject === "数学" && courseTransferSeat.left.status === "transfer");
+
+const payloadEarly = {
+  date: "2026-11-18",
+  komas: [
+    { id: 2, name: "B", start: "10:40", end: "12:10" },
+    { id: 1, name: "A", start: "8:30:00", end: "10:00:00" }
+  ],
+  items: [
+    { koma_id: 1, teacher_name: "講師A", student_name: "朝 生徒", grade: "中1", subject: "通(数)", pos: 1, raw: { state: "3" } },
+    { koma_id: 2, teacher_name: "講師B", student_name: "昼 生徒", grade: "中1", subject: "通(英)", pos: 1, raw: { state: 1 } }
+  ]
+};
+const dayEarly = buildDayFromEwebPayload(payloadEarly);
+check("8:30は08:30〜10:00になる", dayEarly.blocks[0].time === "08:30〜10:00", dayEarly.blocks[0] && dayEarly.blocks[0].time);
+check("8:30の枠が10:40より前", dayEarly.blocks[0].time === "08:30〜10:00" && dayEarly.blocks[1].time === "10:40〜12:10");
+check("8:30の振替が席に付く", dayEarly.blocks[0].seats[0].left.student === "朝 生徒" && dayEarly.blocks[0].seats[0].left.status === "transfer");
 
 /* ---------- 保存キー・他日データ維持 ---------- */
 STORAGE.setItem("seat-table-solo", JSON.stringify({ "2020-01-01": { ["旧生徒" + SEP + "国語"]: 1 } }));
