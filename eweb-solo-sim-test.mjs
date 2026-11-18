@@ -46,7 +46,7 @@ vm.runInContext(helpers + "\n" + eweb, ctx);
 
 const {
   parseEwebSubject, isEwebSoloSubject, isEwebSoloItem, ewebSoloDisplaySubject,
-  ewebScheduleKind, soloMapFromEwebPayload, saveEwebSoloMap, soloComboKey, buildDayFromEwebPayload
+  ewebScheduleKind, ewebFlattenRaw, soloMapFromEwebPayload, saveEwebSoloMap, soloComboKey, buildDayFromEwebPayload
 } = ctx;
 
 const SEP = "\u2016";
@@ -70,6 +70,14 @@ check("isEwebSoloSubject(振<国>)", isEwebSoloSubject("振<国>"));
 check("isEwebSoloSubject(振(数)) は false", !isEwebSoloSubject("振(数)"));
 check("state が文字列 3 でも振替", ewebScheduleKind({ subject: "通(数)", raw: { state: "3" } }) === "transfer");
 check("通常の state 1 は振替ではない", ewebScheduleKind({ subject: "通(数)", raw: { state: 1 } }) === "");
+check("全角の state ３ は振替", ewebScheduleKind({ subject: "通(数)", raw: { state: "３" } }) === "transfer");
+check("state_id 3 は振替", ewebScheduleKind({ subject: "通(数)", raw: { state_id: 3 } }) === "transfer");
+check("state オブジェクト id 3 は振替", ewebScheduleKind({ subject: "通(数)", raw: { state: { id: 3, name: "振替" } } }) === "transfer");
+check("振替日の項目は振替", ewebScheduleKind({ subject: "通(数)", raw: { "reschedule.class_date": "2026-11-11" } }) === "transfer");
+check("furikae_flg 1 は振替", ewebScheduleKind({ subject: "通(数)", raw: { furikae_flg: 1 } }) === "transfer");
+check("振替できるだけの項目は通常", ewebScheduleKind({ subject: "通(数)", raw: { state: 1, can_reschedule: 1 } }) === "");
+check("0000-00-00 の振替日は振替にしない", ewebScheduleKind({ subject: "通(数)", raw: { state: 1, reschedule_class_date: "0000-00-00" } }) === "");
+check("state 4 は振替にしない", ewebScheduleKind({ subject: "通(数)", raw: { state: 4 } }) === "");
 
 check("isEwebSoloSubject(通<国>)", isEwebSoloSubject("通<国>"));
 check("isEwebSoloSubject(通<数>)", isEwebSoloSubject("通<数>"));
@@ -210,6 +218,49 @@ check("8:30は08:30〜10:00になる", dayEarly.blocks[0].time === "08:30〜10:0
 check("8:30の枠が10:40より前", dayEarly.blocks[0].time === "08:30〜10:00" && dayEarly.blocks[1].time === "10:40〜12:10");
 check("8:30の振替が席に付く", dayEarly.blocks[0].seats[0].left.student === "朝 生徒" && dayEarly.blocks[0].seats[0].left.status === "transfer");
 
+const nestedSchedule = {
+  koma_id: 1,
+  teacher_name: "講師A",
+  student_name: "入れ子 生徒",
+  student_grade: "中2",
+  subject_name: "通(数)",
+  pos: 1,
+  state: { id: 3, name: "振替" },
+  student: { memo: "メモに振替とあっても見ない" },
+  reschedule: { class_date: "2026-11-01" }
+};
+const nestedRaw = ewebFlattenRaw(nestedSchedule);
+check("入れ子の state を平らにする", nestedRaw.state === 3 && nestedRaw["state.name"] === "振替", JSON.stringify(nestedRaw.state));
+check("生徒オブジェクトの中はコピーしない", nestedRaw["student.memo"] == null);
+check("入れ子の振替日を残す", nestedRaw.reschedule_class_date === "2026-11-01");
+check("平らにした通(数)は振替", ewebScheduleKind({ subject: "通(数)", raw: nestedRaw }) === "transfer");
+
+const nestedNormal = ewebFlattenRaw({
+  subject_name: "通(数)",
+  state: { id: 1, name: "通常" },
+  can_reschedule: 1,
+  reschedule: { class_date: "0000-00-00" }
+});
+check("通常の入れ子 state は振替にしない", ewebScheduleKind({ subject: "通(数)", raw: nestedNormal }) === "");
+
+const payloadNestedThird = {
+  date: "2026-11-18",
+  komas: [{ id: 3, name: "A", start: "08:30", end: "10:00" }],
+  items: [
+    { koma_id: 3, teacher_name: "講師A", student_name: "通常 一郎", subject: "通(数)", pos: 1, raw: ewebFlattenRaw({ subject_name: "通(数)", state: 1 }) },
+    { koma_id: 3, teacher_name: "講師A", student_name: "通常 二郎", subject: "通(英)", pos: 2, raw: ewebFlattenRaw({ subject_name: "通(英)", state: { id: 1, name: "通常" } }) },
+    { koma_id: 3, teacher_name: "講師A", student_name: "入れ子 三郎", subject: "通(国)", pos: 3, raw: ewebFlattenRaw({ subject_name: "通(国)", state: { id: 3 } }) }
+  ]
+};
+const nestedThird = buildDayFromEwebPayload(payloadNestedThird);
+const nestedSeat = nestedThird.blocks[0].seats.find(s => s.left && s.left.student === "入れ子 三郎");
+check("入れ子の3人目振替は席になる", !!(nestedSeat && nestedSeat.left.status === "transfer"), nestedSeat && nestedSeat.left.status);
+check("入れ子でも講習は講習のまま", buildDayFromEwebPayload({
+  date: "2026-11-18",
+  komas: [{ id: 1, start: "17:10", end: "18:40" }],
+  items: [{ koma_id: 1, teacher_name: "講師A", student_name: "高橋 次郎", subject: "講(数)", pos: 1, raw: ewebFlattenRaw({ subject_name: "講(数)", state: { id: 1, name: "通常" } }) }]
+}).blocks[0].seats[0].left.status === "course");
+
 /* ---------- 保存キー・他日データ維持 ---------- */
 STORAGE.setItem("seat-table-solo", JSON.stringify({ "2020-01-01": { ["旧生徒" + SEP + "国語"]: 1 } }));
 saveEwebSoloMap("2026-08-18", mapK);
@@ -217,6 +268,40 @@ const stored = JSON.parse(STORAGE.getItem("seat-table-solo"));
 check("保存キーは seat-table-solo", STORAGE.getItem("seat-table-solo") != null);
 check("他日の既存1対1を消さない", stored["2020-01-01"]["旧生徒" + SEP + "国語"] === 1);
 check("当日分はパース後科目で保存", stored["2026-08-18"][keyK] === 1);
+
+const bmExpr = appSrc.match(/const EWEB_BOOKMARKLET = (`[\s\S]*?`);\n+function isValidGoogleWebAppUrl/);
+if(!bmExpr) throw new Error("bookmarklet template not found");
+const bookmarklet = vm.runInContext(bmExpr[1], ctx);
+check("ブックマークレットが入れ子の state を残す", bookmarklet.includes("function ewebFlattenRaw") && bookmarklet.includes("state.id"));
+let bookmarkletPayload = null;
+const bmBody = bookmarklet.replace(/^javascript:/, "");
+const bmCtx = {
+  window: {
+    focus(){},
+    axios: { post: async () => ({ data: {
+      date_komas: [{ koma_set: { komas: [{ id: 1, name: "A", start: "8:30", end: "10:00" }] } }],
+      schedules: [{
+        koma_id: 1, teacher_name: "講師A", student_name: "入れ子 生徒", student_grade: "中2",
+        subject_name: "通(数)", pos: 1,
+        state: { id: 3, name: "振替" },
+        student: { memo: "振替と書いても捨てる" },
+        reschedule: { class_date: "2026-11-01" }
+      }],
+      scheduleGroups: []
+    } }) }
+  },
+  location: { pathname: "/schoolDay/12" },
+  document: { querySelector: () => ({ value: "2026-11-18" }) },
+  navigator: { clipboard: { writeText: async (text) => { bookmarkletPayload = text; } } },
+  alert(){},
+  prompt(){}
+};
+vm.createContext(bmCtx);
+await vm.runInContext(bmBody, bmCtx);
+const pasted = JSON.parse(bookmarkletPayload);
+const pastedItem = pasted.items[0];
+check("ブックマークレットの取込JSONが振替になる", pasted.date === "2026-11-18" && ewebScheduleKind(pastedItem) === "transfer", pastedItem && JSON.stringify(pastedItem.raw && pastedItem.raw.state));
+check("ブックマークレットは生徒メモをコピーしない", pastedItem.raw["student.memo"] == null);
 
 const failed = results.filter(r => !r.ok);
 console.log("\n--- node unit ---");

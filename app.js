@@ -1632,22 +1632,101 @@ function isEwebPairSubject(raw){
 return /^(?:通|振替|振)\s*\([^)]+\)$/.test(normalizeEwebSubjectText(raw));
 }
 /* eWebの振替は科目の「振」だけでなく、state:3 や reschedule_class_date で来る。
-   state は数値だったり文字列 "3" だったりする。コメント欄に「振替」は入らない。 */
+   state は数値、文字列 "3"、全角「３」、{id:3, name:"振替"} がある。
+   コメント欄に「振替」は入らない。state 4 は欠席とは決めない。
+   「振替できる」だけの項目は、その授業が振替であることには使わない。 */
+function ewebFoldDigits(value){
+return String(value == null ? "" : value).replace(/[０-９]/g, function(ch){
+return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
+});
+}
+function ewebStateNumber(value){
+if(value && typeof value === "object"){
+if(value.id != null) return ewebStateNumber(value.id);
+if(value.value != null) return ewebStateNumber(value.value);
+if(value.state != null) return ewebStateNumber(value.state);
+return NaN;
+}
+const s = ewebFoldDigits(value).trim();
+if(!/^-?\d+$/.test(s)) return NaN;
+return Number(s);
+}
+function ewebTransferValue(value){
+if(value == null || value === false) return false;
+const s = String(value).trim();
+if(!s || s === "0" || /^false$/i.test(s) || s === "null" || s === "undefined") return false;
+if(/^0{4}-0{2}-0{2}/.test(s)) return false;
+return true;
+}
+/* 項目名のどこかに振替の語があるだけでは拾わない。
+   state 系、振替日、flg / id、reschedule 直下の日付だけを見る。 */
+function ewebRawSignalsTransfer(key, value){
+if(!ewebTransferValue(value)) return false;
+if(/振替/.test(String(value))) return true;
+const parts = String(key || "").split(".");
+const leaf = parts[parts.length - 1];
+const parent = parts.length > 1 ? parts[parts.length - 2] : "";
+if(/can_|allow_|enable|able|possible|permission|count|limit|max|quota/i.test(leaf)) return false;
+if(/can_|allow_|enable|able|possible|permission|count|limit|max|quota/i.test(parent)) return false;
+if(/^(state|state_id|schedule_state|schedule_state_id)$/.test(leaf) && ewebStateNumber(value) === 3) return true;
+if((leaf === "id" || leaf === "value") && /^(state|schedule_state)$/.test(parent) && ewebStateNumber(value) === 3) return true;
+if(/^(reschedule_class_date)$/.test(leaf)) return true;
+if(/^(class_date|date)$/.test(leaf) && /^(reschedule|reschedule_class|furikae)$/i.test(parent)) return true;
+if(/^(is_|has_)?(reschedule|furikae|transfer)$/i.test(leaf)) return true;
+if(/(reschedule|furikae|transfer|振替)/i.test(leaf) && /(_flg|_flag|_id|_date)$/i.test(leaf)) return true;
+if(parts.length === 1 && /^(reschedule|furikae|transfer|振替)$/i.test(leaf)) return true;
+return false;
+}
 function ewebScheduleKind(it){
 if(!it) return "";
 const raw = it.raw || {};
-if(Number(raw.state) === 3) return "transfer";
-if(raw.reschedule_class_date) return "transfer";
 if(it.flags && it.flags.length) return "transfer";
 const subj = normalizeEwebSubjectText(ewebItemSubject(it));
 if(/振替/.test(subj) || /^振\s*[<(【\[]/.test(subj)) return "transfer";
 const keys = Object.keys(raw);
 for(let i = 0; i < keys.length; i++){
-const v = raw[keys[i]];
-if(v == null || typeof v === "object") continue;
-if(/振替/.test(String(v))) return "transfer";
+const key = keys[i];
+const v = raw[key];
+if(v && typeof v === "object"){
+if(ewebRawSignalsTransfer(key + ".id", v.id)) return "transfer";
+if(ewebRawSignalsTransfer(key + ".value", v.value)) return "transfer";
+if(ewebRawSignalsTransfer(key + ".name", v.name)) return "transfer";
+continue;
+}
+if(ewebRawSignalsTransfer(key, v)) return "transfer";
 }
 return "";
+}
+/* ブックマークレットからも使う。生徒・講師の入れ子は捨て、state や振替日は残す。 */
+function ewebFlattenRaw(obj){
+var out = {};
+var blankDate = function(v){
+return v == null || v === "" || v === 0 || v === false || /^0{4}-0{2}-0{2}/.test(String(v));
+};
+var walk = function(node, prefix, depth){
+if(node == null || depth > 4) return;
+if(typeof node !== "object"){
+if(prefix) out[prefix] = node;
+return;
+}
+var ks = Object.keys(node);
+for(var i = 0; i < ks.length; i++){
+var k = ks[i];
+if(depth === 0 && /^(student|teacher|user|join_students|join_teachers|students|teachers)$/.test(k)) continue;
+walk(node[k], prefix ? prefix + "." + k : k, depth + 1);
+}
+};
+walk(obj, "", 0);
+delete out.student_name;
+delete out.teacher_name;
+if(out.state == null && out["state.id"] != null) out.state = out["state.id"];
+if(out.state == null && out["state.value"] != null) out.state = out["state.value"];
+if(blankDate(out.reschedule_class_date)){
+var rd = out["reschedule.class_date"] || out["reschedule.date"] || out["reschedule_class.date"] || out["reschedule.class.date"] || "";
+if(!blankDate(rd)) out.reschedule_class_date = rd;
+else delete out.reschedule_class_date;
+}
+return out;
 }
 /* 8:30 のように時が1桁だと、時刻入力が空になり振替の照合も外れる。HH:MM に揃える。 */
 function ewebClock(value){
@@ -2554,7 +2633,7 @@ saveState(); renderPrintPreviewView();
 /* =========================================================
 SETTINGS / BACKUP
 ========================================================= */
-const EWEB_BOOKMARKLET = `javascript:(async()=>{window.focus();const m=location.pathname.match(/schoolDay\\/(\\d+)/);const schoolId=m?m[1]:null;const dateInput=document.querySelector('input[type=date]');const date=dateInput?dateInput.value:null;if(!schoolId||!date){alert('学校IDまたは日付が取得できませんでした');return;}try{const res=await window.axios.post('/api/schedule/getSchoolSchedules/'+schoolId+'/'+date+'/'+date);const data=res.data;const komas=(data.date_komas||[]).flatMap(dk=>(dk.koma_set&&dk.koma_set.komas)||[]).map(k=>({id:k.id,name:k.name,start:k.start,end:k.end,raw:Object.keys(k).reduce(function(o,key){var v=k[key];if(v===null||typeof v!=="object")o[key]=v;return o;},{})}));const items=(data.schedules||[]).map(s=>({koma_id:s.koma_id,teacher_name:s.teacher_name,student_name:s.student_name,grade:s.student_grade,subject:s.subject_name,pos:s.pos,flags:Object.keys(s).filter(function(k){return /\u632f\u66ff/.test(String(s[k]))}).map(function(k){return k+"="+String(s[k]).slice(0,40)}),raw:Object.keys(s).reduce(function(o,k){var v=s[k];if(v===null||typeof v!=="object"){if(k!=="student_name"&&k!=="teacher_name")o[k]=v;}return o;},{})}));const groups=(data.scheduleGroups||[]).map(g=>({koma_id:g.koma_id,start:g.start,end:g.end,name:g.group_class?g.group_class.name:'',teacher_name:(g.join_teachers&&g.join_teachers[0]&&g.join_teachers[0].teacher&&g.join_teachers[0].teacher.user)?g.join_teachers[0].teacher.user.name:'',students:(g.join_students||[]).map(js=>js.student?js.student.name:'').filter(Boolean)}));const payload={date,komas,items,groups};const json=JSON.stringify(payload);let copied=false;try{await navigator.clipboard.writeText(json);copied=true;}catch(e){copied=false;}if(copied){alert(date+' の予定を座席表アプリ用にコピーしました（個別'+items.length+'件／集団'+groups.length+'件）。座席表アプリの「eWebから読み込む」ボタンに貼り付けてください。');}else{window.prompt('自動コピーに失敗しました。下のテキストを全選択（Ctrl+A/Cmd+A）してコピーし、座席表アプリの「eWebから読み込む」に貼り付けてください：',json);}}catch(err){alert('取得に失敗しました: '+(err.response?err.response.status:err.message));}})();`;
+const EWEB_BOOKMARKLET = `javascript:(async()=>{window.focus();const m=location.pathname.match(/schoolDay\\/(\\d+)/);const schoolId=m?m[1]:null;const dateInput=document.querySelector('input[type=date]');const date=dateInput?dateInput.value:null;if(!schoolId||!date){alert('学校IDまたは日付が取得できませんでした');return;}try{const res=await window.axios.post('/api/schedule/getSchoolSchedules/'+schoolId+'/'+date+'/'+date);const data=res.data;var ewebFlat=${ewebFlattenRaw.toString().replace(/[\n\r\t]+/g, " ")};const komas=(data.date_komas||[]).flatMap(dk=>(dk.koma_set&&dk.koma_set.komas)||[]).map(k=>({id:k.id,name:k.name,start:k.start,end:k.end,raw:Object.keys(k).reduce(function(o,key){var v=k[key];if(v===null||typeof v!=="object")o[key]=v;return o;},{})}));const items=(data.schedules||[]).map(function(s){var raw=ewebFlat(s);var flags=Object.keys(raw).filter(function(k){return /\u632f\u66ff/.test(String(raw[k]));}).map(function(k){return k+"="+String(raw[k]).slice(0,80);});return {koma_id:s.koma_id,teacher_name:s.teacher_name,student_name:s.student_name,grade:s.student_grade,subject:s.subject_name||raw.subject_name||raw["subject.name"]||"",pos:s.pos,flags:flags,raw:raw};});const groups=(data.scheduleGroups||[]).map(g=>({koma_id:g.koma_id,start:g.start,end:g.end,name:g.group_class?g.group_class.name:'',teacher_name:(g.join_teachers&&g.join_teachers[0]&&g.join_teachers[0].teacher&&g.join_teachers[0].teacher.user)?g.join_teachers[0].teacher.user.name:'',students:(g.join_students||[]).map(js=>js.student?js.student.name:'').filter(Boolean)}));const payload={date,komas,items,groups};const json=JSON.stringify(payload);let copied=false;try{await navigator.clipboard.writeText(json);copied=true;}catch(e){copied=false;}if(copied){alert(date+' の予定を座席表アプリ用にコピーしました（個別'+items.length+'件／集団'+groups.length+'件）。座席表アプリの「eWebから読み込む」ボタンに貼り付けてください。');}else{window.prompt('自動コピーに失敗しました。下のテキストを全選択（Ctrl+A/Cmd+A）してコピーし、座席表アプリの「eWebから読み込む」に貼り付けてください：',json);}}catch(err){alert('取得に失敗しました: '+(err.response?err.response.status:err.message));}})();`;
 
 function isValidGoogleWebAppUrl(url){
 url = String(url || "").trim();
